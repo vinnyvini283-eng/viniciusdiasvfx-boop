@@ -1,0 +1,22 @@
+# Credenciais — NUNCA commitar
+backend/.env
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Claude / IDE
+.claude/skills/
