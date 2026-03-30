@@ -1,13 +1,18 @@
 import json
 import os
 import logging
+from collections import deque
 from datetime import date
 from groq import Groq
 
 logger = logging.getLogger(__name__)
 _groq: Groq | None = None
 
-MODEL = "llama-4-scout-17b-16e-instruct"
+MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+_MAX_HISTORY = 10  # pares de mensagens (user + assistant) por usuário
+
+# user_id → deque de {"role": str, "content": str}
+_history: dict[int, deque] = {}
 
 SYSTEM_PROMPT = """Você é o assistente pessoal de Vinicius, profissional de marketing digital e vídeo no Brasil.
 Analise a mensagem e retorne APENAS um JSON válido, sem markdown, sem explicações.
@@ -60,6 +65,7 @@ Regras:
 - confirmacao_necessaria=true se valor > 500 OU intencao começa com "deletar_"
 - Data padrão: hoje ({today})
 - Categorias válidas: Alimentação, Transporte, Lazer, Vestuário, Saúde, Educação, Outros
+- Use o histórico da conversa para entender referências como "aquele gasto", "o último", "isso", "ele"
 """
 
 
@@ -73,16 +79,17 @@ def _get_groq() -> Groq:
     return _groq
 
 
-def parse_mensagem(texto: str) -> dict:
+def parse_mensagem(texto: str, user_id: int | None = None) -> dict:
     today = date.today().strftime("%d/%m/%Y")
-    prompt = SYSTEM_PROMPT.replace("{today}", today)
+    system = SYSTEM_PROMPT.replace("{today}", today)
+
+    # Monta histórico de contexto
+    history = list(_history.get(user_id, [])) if user_id is not None else []
+    messages = [{"role": "system", "content": system}] + history + [{"role": "user", "content": texto}]
 
     response = _get_groq().chat.completions.create(
         model=MODEL,
-        messages=[
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": texto},
-        ],
+        messages=messages,
         temperature=0.1,
         max_tokens=512,
     )
@@ -94,5 +101,18 @@ def parse_mensagem(texto: str) -> dict:
         content = "\n".join(lines).strip()
 
     parsed = json.loads(content)
-    logger.debug(f"parse_mensagem input={texto!r} output={parsed}")
+    logger.debug(f"parse_mensagem user={user_id} input={texto!r} output={parsed}")
+
+    # Salva no histórico para contexto futuro
+    if user_id is not None:
+        if user_id not in _history:
+            _history[user_id] = deque(maxlen=_MAX_HISTORY * 2)
+        _history[user_id].append({"role": "user", "content": texto})
+        _history[user_id].append({"role": "assistant", "content": content})
+
     return parsed
+
+
+def clear_history(user_id: int) -> None:
+    """Limpa o histórico de conversa de um usuário."""
+    _history.pop(user_id, None)

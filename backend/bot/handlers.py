@@ -6,7 +6,7 @@ from bot.formatter import (
     fmt_moeda, msg_inserido, msg_resumo, msg_gastos_periodo,
     msg_confirmacao_delete, msg_confirmacao_registro, fmt_lancamento,
 )
-from bot.parser import parse_mensagem
+from bot.parser import parse_mensagem, clear_history
 from config import DESPESAS_FIXAS_MAP, is_authorized
 from financeiro import lancamentos, entradas, investimentos
 from financeiro.fixas import atualizar_campo as fixas_atualizar
@@ -62,8 +62,13 @@ def handle_message(user_id: int, texto: str) -> str:
     if user_id in _pending:
         return _resolve(user_id, texto)
 
+    # Comando especial para limpar histórico
+    if texto.lower() in ("/reset", "/limpar", "reset", "limpar contexto"):
+        clear_history(user_id)
+        return "🔄 Contexto limpo. Começando nova conversa!"
+
     try:
-        parsed = parse_mensagem(texto)
+        parsed = parse_mensagem(texto, user_id=user_id)
     except Exception as e:
         logger.error(f"Parser error user={user_id}: {e}")
         return "❌ Não entendi. Pode reformular?"
