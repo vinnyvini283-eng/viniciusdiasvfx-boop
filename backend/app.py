@@ -24,6 +24,13 @@ def health():
     return jsonify({"status": "ok", "service": "vinbot"})
 
 
+@app.route("/env-check", methods=["GET"])
+def env_check():
+    keys = ["TELEGRAM_BOT_TOKEN", "GROQ_API_KEY", "SUPABASE_URL",
+            "SUPABASE_SERVICE_KEY", "TELEGRAM_WEBHOOK_URL", "ALLOWED_USER_IDS"]
+    return jsonify({k: bool(os.getenv(k)) for k in keys})
+
+
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.get_json(silent=True)
