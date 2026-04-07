@@ -9,4 +9,7 @@ echo "149.154.166.110 api.telegram.org" >> /etc/hosts
 echo "172.64.149.20 api.groq.com" >> /etc/hosts
 echo "104.18.38.236 api.groq.com" >> /etc/hosts
 
+# Supabase project (Cloudflare IP)
+echo "104.18.38.10 uuezjatkibeprnqoigjc.supabase.co" >> /etc/hosts
+
 exec gunicorn --bind 0.0.0.0:7860 --workers 1 --timeout 120 app:app
