@@ -70,7 +70,7 @@ def webhook():
     except Exception as e:
         logger.error(f"Webhook error: {e}", exc_info=True)
         try:
-            send_message(int(chat_id), "Serviço temporariamente indisponível. Tente em instantes.")
+            send_message(int(chat_id), f"Erro interno: {type(e).__name__}: {str(e)[:200]}")
         except Exception:
             pass
 
