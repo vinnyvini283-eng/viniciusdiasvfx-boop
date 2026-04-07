@@ -31,6 +31,13 @@ def env_check():
     return jsonify({k: bool(os.getenv(k)) for k in keys})
 
 
+@app.route("/test-send", methods=["POST"])
+def test_send():
+    from bot.telegram_api import send_message
+    ok = send_message(6903527008, "VinBot online e funcionando!")
+    return jsonify({"sent": ok})
+
+
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.get_json(silent=True)
