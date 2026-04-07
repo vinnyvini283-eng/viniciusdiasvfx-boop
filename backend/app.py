@@ -25,26 +25,6 @@ def health():
     return jsonify({"status": "ok", "service": "vinbot"})
 
 
-@app.route("/env-check", methods=["GET"])
-def env_check():
-    keys = ["TELEGRAM_BOT_TOKEN", "GROQ_API_KEY", "SUPABASE_URL",
-            "SUPABASE_SERVICE_KEY", "TELEGRAM_WEBHOOK_URL", "ALLOWED_USER_IDS"]
-    return jsonify({k: bool(os.getenv(k)) for k in keys})
-
-
-@app.route("/test-send", methods=["POST"])
-def test_send():
-    import requests as req
-    token = os.getenv("TELEGRAM_BOT_TOKEN", "")
-    try:
-        r = req.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={"chat_id": 6903527008, "text": "VinBot online!"},
-            timeout=10
-        )
-        return jsonify({"status": r.status_code, "body": r.json()})
-    except Exception as e:
-        return jsonify({"error": str(e)})
 
 
 @app.route("/webhook", methods=["POST"])
@@ -60,8 +40,29 @@ def webhook():
     user_id = message.get("from", {}).get("id")
     chat_id = message.get("chat", {}).get("id")
     text = (message.get("text") or "").strip()
+    photos = message.get("photo")
 
-    if not text or not user_id or not chat_id:
+    if not user_id or not chat_id:
+        return jsonify({"ok": True})
+
+    # Foto → OCR
+    if photos and not text:
+        from bot.ocr import processar_foto
+        from config import is_authorized
+        if not is_authorized(int(user_id)):
+            return jsonify({"ok": True})
+        file_id = photos[-1]["file_id"]  # maior resolução
+        try:
+            ocr = processar_foto(file_id)
+            resposta = handle_message(int(user_id), "__ocr__", ocr_data=ocr)
+            if resposta:
+                send_message(int(chat_id), resposta)
+        except Exception as e:
+            logger.error(f"OCR error: {e}", exc_info=True)
+            send_message(int(chat_id), "Nao consegui ler o comprovante. Qual o valor e onde foi?")
+        return jsonify({"ok": True})
+
+    if not text:
         return jsonify({"ok": True})
 
     try:

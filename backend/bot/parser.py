@@ -39,9 +39,9 @@ Mapeamento de clientes:
 - "Alpha" → "ALPHA CENTRO"
 - "GS", "pneus" → "GSPNEUS"
 
-Intenções disponíveis:
+Intenções financeiras:
 - inserir_lancamento: gasto variável (mercado, restaurante, farmácia, gasolina, etc.)
-- inserir_entrada: freela, pagamento recebido, receita extra
+- inserir_entrada: freela, pagamento recebido, receita extra (SEM ser de cliente específico)
 - inserir_investimento: investimento (tesouro, ações, poupança, fundo, etc.)
 - atualizar_fixa: despesa fixa (aluguel, energia, água, internet, condomínio, seguro, mensalidade)
 - atualizar_salario: atualizar salário fixo mensal
@@ -56,16 +56,26 @@ Intenções disponíveis:
 - deletar_lancamento: apagar/remover lançamento (confirmacao_necessaria=true)
 - deletar_entrada: apagar entrada/freela (confirmacao_necessaria=true)
 
+Intenções work:
+- nova_tarefa: criar nova tarefa (ex: "nova tarefa GSPNEUS: relatório até sexta")
+- consulta_pendentes: listar tarefas pendentes (ex: "pendentes", "tarefas da Cida Car")
+- concluir_tarefa: marcar tarefa como concluída
+- deletar_tarefa: excluir tarefa (confirmacao_necessaria=true)
+- registrar_pagamento_cliente: cliente pagou (ex: "Cida Car pagou 1500") — usa cliente + valor
+- consulta_pagamentos_cliente: quanto cliente pagou (ex: "quanto a Cida Car me pagou")
+
 Regras:
-- "quanto gastei hoje" → intencao "consulta_hoje"
-- "quanto gastei essa semana" → intencao "consulta_semana"
-- "qual meu saldo" ou "resumo do mês" → intencao "consulta_resumo"
-- "quanto gastei em X" onde X é categoria → intencao "consulta_categoria", categoria=X
+- "quanto gastei hoje" → consulta_hoje
+- "qual meu saldo" / "resumo" → consulta_resumo
+- "quanto gastei em X" onde X é categoria → consulta_categoria, categoria=X
+- "[Cliente] pagou [valor]" → registrar_pagamento_cliente com cliente e valor
+- "nova tarefa [cliente]: [nome] até [data]" → nova_tarefa com tarefa_nome, cliente e data_limite
+- "pendentes" / "tarefas" → consulta_pendentes
 - "apaga/remove/cancela/deleta" → intencao começa com "deletar_", confirmacao_necessaria=true
 - confirmacao_necessaria=true se valor > 500 OU intencao começa com "deletar_"
 - Data padrão: hoje ({today})
-- Categorias válidas: Alimentação, Transporte, Lazer, Vestuário, Saúde, Educação, Outros
-- Use o histórico da conversa para entender referências como "aquele gasto", "o último", "isso", "ele"
+- Categorias: Alimentação, Transporte, Lazer, Vestuário, Saúde, Educação, Outros
+- Use o histórico para entender "aquele gasto", "o último", "isso"
 """
 
 

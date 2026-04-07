@@ -7,7 +7,7 @@ from bot.formatter import (
     msg_confirmacao_delete, msg_confirmacao_registro, fmt_lancamento,
 )
 from bot.parser import parse_mensagem, clear_history
-from config import DESPESAS_FIXAS_MAP, is_authorized
+from config import DESPESAS_FIXAS_MAP, ALIASES_CLIENTES, is_authorized
 from financeiro import lancamentos, entradas, investimentos
 from financeiro.fixas import atualizar_campo as fixas_atualizar
 from financeiro.investimentos import get_total_ano
@@ -15,6 +15,8 @@ from financeiro.queries import (
     get_resumo_mes, get_gastos_hoje, get_gastos_semana,
     get_gastos_mes, get_maior_gasto, update_salario,
 )
+from work import tarefas as work_tarefas
+from work import clientes as work_clientes
 
 logger = logging.getLogger(__name__)
 
@@ -41,37 +43,65 @@ def _queue(user_id: int, action, preview: str) -> str:
 def _resolve(user_id: int, texto: str) -> str:
     pending = _pending.pop(user_id)
     if time.time() - pending.get("ts", 0) > _PENDING_TTL:
-        return "⏱️ Confirmação expirada. Repita o comando."
+        return "Confirmacao expirada. Repita o comando."
+
+    # Seleção numerada (ex: concluir_tarefa)
+    if pending.get("type") == "concluir_tarefa":
+        items = pending.get("items", [])
+        try:
+            idx = int(texto.strip()) - 1
+            if 0 <= idx < len(items):
+                work_tarefas.concluir(items[idx]["id"])
+                return f"Tarefa concluida: *{items[idx]['nome']}*"
+        except ValueError:
+            pass
+        return "Numero invalido. Operacao cancelada."
+
     if texto.lower().strip() in ("sim", "s", "yes", "ok", "confirmar", "1"):
         try:
             return pending["action"]()
         except Exception as e:
             logger.error(f"Pending action error: {e}")
-            return "❌ Erro ao executar. Tente novamente."
-    return "❌ Operação cancelada."
+            return "Erro ao executar. Tente novamente."
+    return "Operacao cancelada."
 
 
-def handle_message(user_id: int, texto: str) -> str:
+def handle_message(user_id: int, texto: str, ocr_data: dict = None) -> str:
     if not is_authorized(user_id):
         return ""
 
     texto = texto.strip()
-    if not texto:
+    if not texto and not ocr_data:
         return ""
 
     if user_id in _pending:
         return _resolve(user_id, texto)
 
+    # Foto com OCR — montar parsed diretamente
+    if texto == "__ocr__" and ocr_data:
+        if not ocr_data.get("valor"):
+            return "Nao consegui ler o valor. Quanto foi e onde?"
+        parsed = {
+            "intencao": "inserir_lancamento",
+            "valor": ocr_data.get("valor"),
+            "descricao": ocr_data.get("descricao", "Comprovante"),
+            "categoria": ocr_data.get("categoria", "Outros"),
+            "data": date.today().strftime("%d/%m/%Y"),
+            "confianca": ocr_data.get("confianca", "media"),
+            "confirmacao_necessaria": ocr_data.get("confianca") != "alta",
+        }
+        return _route(user_id, parsed, "inserir_lancamento")
+
     # Comando especial para limpar histórico
     if texto.lower() in ("/reset", "/limpar", "reset", "limpar contexto"):
         clear_history(user_id)
-        return "🔄 Contexto limpo. Começando nova conversa!"
+        return "Contexto limpo. Comecando nova conversa!"
 
     try:
         parsed = parse_mensagem(texto, user_id=user_id)
     except Exception as e:
         logger.error(f"Parser error user={user_id}: {e}")
-        return "❌ Não entendi. Pode reformular?"
+        return "Nao entendi. Pode reformular?"
 
     intencao = parsed.get("intencao", "")
     logger.info(f"user={user_id} intencao={intencao}")
@@ -236,6 +266,116 @@ def _route(user_id: int, parsed: dict, intencao: str) -> str:
 
         return _queue(user_id, do, msg_confirmacao_delete(ultimo, "entrada"))
 
+    # ── WORK — TAREFAS ────────────────────────────────────────────────────
+    elif intencao == "nova_tarefa":
+        nome = parsed.get("tarefa_nome") or parsed.get("descricao")
+        if not nome:
+            return "Qual o nome da tarefa?"
+        cliente_nome = parsed.get("cliente")
+        data_limite = None
+        if parsed.get("data_limite"):
+            try:
+                d, m, y = parsed["data_limite"].split("/")
+                data_limite = f"{y}-{m}-{d}"
+            except Exception:
+                pass
+
+        cliente_id = None
+        if cliente_nome:
+            c = work_clientes.get_by_nome(cliente_nome)
+            if c:
+                cliente_id = c["id"]
+
+        work_tarefas.criar(nome, cliente_id=cliente_id, data_limite=data_limite)
+        msg = f"Tarefa criada: *{nome}*"
+        if cliente_nome:
+            msg += f" — {cliente_nome}"
+        if data_limite:
+            msg += f"\nPrazo: {parsed['data_limite']}"
+        return msg
+
+    elif intencao == "consulta_pendentes":
+        cliente_nome = parsed.get("cliente")
+        pendentes = work_tarefas.listar_pendentes(cliente_nome)
+        if not pendentes:
+            filtro = f" de *{cliente_nome}*" if cliente_nome else ""
+            return f"Nenhuma tarefa pendente{filtro}."
+        linhas = [f"Tarefas pendentes{' — ' + cliente_nome if cliente_nome else ''}:\n"]
+        for i, t in enumerate(pendentes[:10], 1):
+            cliente = (t.get("clientes") or {}).get("nome", "")
+            prazo = f" (ate {t['data_limite']})" if t.get("data_limite") else ""
+            linhas.append(f"{i}. {t['nome']}{' — ' + cliente if cliente else ''}{prazo}")
+        return "\n".join(linhas)
+
+    elif intencao == "concluir_tarefa":
+        nome_busca = parsed.get("tarefa_nome") or parsed.get("descricao") or ""
+        pendentes = work_tarefas.listar_pendentes()
+        if not pendentes:
+            return "Nenhuma tarefa pendente."
+        # Tenta match por nome
+        match = next((t for t in pendentes if nome_busca.lower() in t["nome"].lower()), None)
+        if match:
+            work_tarefas.concluir(match["id"])
+            return f"Tarefa concluida: *{match['nome']}*"
+        # Lista numerada para escolher
+        linhas = ["Qual tarefa concluir? Responda com o numero:\n"]
+        for i, t in enumerate(pendentes[:8], 1):
+            linhas.append(f"{i}. {t['nome']}")
+        _pending[user_id] = {
+            "action": None,
+            "ts": time.time(),
+            "type": "concluir_tarefa",
+            "items": pendentes[:8],
+        }
+        return "\n".join(linhas)
+
+    elif intencao == "deletar_tarefa":
+        nome_busca = parsed.get("tarefa_nome") or parsed.get("descricao") or ""
+        pendentes = work_tarefas.listar_pendentes()
+        match = next((t for t in pendentes if nome_busca.lower() in t["nome"].lower()), None)
+        if not match:
+            return "Tarefa nao encontrada. Verifique os pendentes."
+
+        def do():
+            work_tarefas.deletar(match["id"])
+            return f"Tarefa excluida: *{match['nome']}*"
+
+        return _queue(user_id, do,
+            f"Excluir tarefa?\n*{match['nome']}*\n\nResponda *sim* para confirmar.")
+
+    # ── WORK — PAGAMENTOS ─────────────────────────────────────────────────
+    elif intencao == "registrar_pagamento_cliente":
+        cliente_nome = parsed.get("cliente")
+        valor = parsed.get("valor")
+        if not cliente_nome:
+            return "Qual cliente pagou?"
+        if not valor:
+            return f"Qual o valor do pagamento de *{cliente_nome}*?"
+
+        def do():
+            descricao = parsed.get("descricao") or f"Pagamento {cliente_nome}"
+            # INSERT entrada financeira
+            entrada = entradas.inserir(descricao, valor, tipo="freela")
+            entrada_id = entrada["id"] if entrada else None
+            # INSERT pagamento_cliente linkado
+            work_clientes.registrar_pagamento(
+                cliente_nome, valor, descricao=descricao, entrada_id=entrada_id
+            )
+            return (f"Recebido de *{cliente_nome}*: {fmt_moeda(valor)}\n"
+                    f"Entrada registrada no financeiro.")
+
+        if parsed.get("confirmacao_necessaria") or valor > 500:
+            return _queue(user_id, do,
+                msg_confirmacao_registro(f"Receber de {cliente_nome}", valor))
+        return do()
+
+    elif intencao == "consulta_pagamentos_cliente":
+        cliente_nome = parsed.get("cliente")
+        if not cliente_nome:
+            return "Qual cliente?"
+        total = work_clientes.total_recebido(cliente_nome)
+        return f"Total recebido de *{cliente_nome}*: {fmt_moeda(total)}"
+
     else:
-        logger.warning(f"Intenção não mapeada: {intencao!r}")
-        return "🤔 Não entendi bem. Pode reformular?"
+        logger.warning(f"Intencao nao mapeada: {intencao!r}")
+        return "Nao entendi bem. Pode reformular?"
