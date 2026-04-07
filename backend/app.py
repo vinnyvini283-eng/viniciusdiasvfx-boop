@@ -1,3 +1,4 @@
+# VinBot v1.1 — rebuild to apply secrets
 import os
 import logging
 from flask import Flask, request, jsonify
