@@ -1,4 +1,5 @@
-# VinBot v1.1 — rebuild to apply secrets
+# VinBot v1.2
+import dns_fix  # must be first — patches socket DNS to use 8.8.8.8
 import os
 import logging
 from flask import Flask, request, jsonify
