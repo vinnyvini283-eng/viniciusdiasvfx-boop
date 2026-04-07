@@ -33,9 +33,17 @@ def env_check():
 
 @app.route("/test-send", methods=["POST"])
 def test_send():
-    from bot.telegram_api import send_message
-    ok = send_message(6903527008, "VinBot online e funcionando!")
-    return jsonify({"sent": ok})
+    import requests as req
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    try:
+        r = req.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": 6903527008, "text": "VinBot online!"},
+            timeout=10
+        )
+        return jsonify({"status": r.status_code, "body": r.json()})
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 
 @app.route("/webhook", methods=["POST"])
