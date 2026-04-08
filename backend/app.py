@@ -47,6 +47,26 @@ def webhook():
     if not user_id or not chat_id:
         return jsonify({"ok": True})
 
+    # PDF → importar extrato
+    document = message.get("document")
+    if document and not text:
+        from config import is_authorized
+        if not is_authorized(int(user_id)):
+            return jsonify({"ok": True})
+        mime = document.get("mime_type", "")
+        if mime == "application/pdf":
+            from bot.handlers import handle_pdf_extrato
+            try:
+                resposta = handle_pdf_extrato(int(user_id), document["file_id"])
+                if resposta:
+                    send_message(int(chat_id), resposta)
+            except Exception as e:
+                logger.error(f"PDF extrato error: {e}", exc_info=True)
+                send_message(int(chat_id), "Erro ao processar o PDF. Tente novamente.")
+        else:
+            send_message(int(chat_id), "Por enquanto so processo extratos em PDF.")
+        return jsonify({"ok": True})
+
     # Foto → OCR
     if photos and not text:
         from bot.ocr import processar_foto

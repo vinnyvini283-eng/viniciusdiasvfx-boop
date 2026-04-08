@@ -23,6 +23,25 @@ def send_message(chat_id: int, text: str, parse_mode: str = "Markdown") -> bool:
         return False
 
 
+def download_file(file_id: str) -> bytes | None:
+    """Baixa arquivo do Telegram e retorna os bytes."""
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if not token:
+        return None
+    try:
+        # Pegar o file_path
+        r = requests.get(f"https://api.telegram.org/bot{token}/getFile", params={"file_id": file_id}, timeout=10)
+        r.raise_for_status()
+        file_path = r.json()["result"]["file_path"]
+        # Baixar o arquivo
+        r2 = requests.get(f"https://api.telegram.org/file/bot{token}/{file_path}", timeout=30)
+        r2.raise_for_status()
+        return r2.content
+    except Exception as e:
+        logger.error(f"download_file error: {e}")
+        return None
+
+
 def set_webhook(webhook_url: str) -> bool:
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:

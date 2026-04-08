@@ -66,6 +66,86 @@ def _resolve(user_id: int, texto: str) -> str:
     return "Operacao cancelada."
 
 
+def handle_pdf_extrato(user_id: int, file_id: str) -> str:
+    """Processa PDF de extrato bancário enviado via Telegram."""
+    from bot.telegram_api import download_file
+    from financeiro.importar import parse_pdf_nubank, save_temp_pdf
+    from config import get_supabase_user_uuid
+    from db.supabase_client import get_client
+    import os
+
+    pdf_bytes = download_file(file_id)
+    if not pdf_bytes:
+        return "Nao consegui baixar o arquivo. Tente novamente."
+
+    try:
+        tmp = save_temp_pdf(pdf_bytes)
+        result = parse_pdf_nubank(tmp)
+        os.unlink(tmp)
+    except Exception as e:
+        logger.error(f"handle_pdf_extrato parse error: {e}")
+        return "Nao consegui ler o PDF. Verifique se e um extrato do Nubank."
+
+    lans = result.get("lancamentos", [])
+    ents = result.get("entradas", [])
+
+    if not lans and not ents:
+        return "Nao encontrei movimentacoes no extrato."
+
+    # Guarda para confirmacao
+    uid = get_supabase_user_uuid()
+
+    def inserir_tudo():
+        db = get_client()
+        inseridos = 0
+        for r in lans:
+            d = r["data"]
+            dt = __import__('datetime').date.fromisoformat(d)
+            db.table("lancamentos").insert({
+                "user_id": uid,
+                "descricao": r["descricao"],
+                "valor": r["valor"],
+                "categoria": r.get("categoria", "Outros"),
+                "data": d,
+                "mes": dt.month,
+                "ano": dt.year,
+            }).execute()
+            inseridos += 1
+        for r in ents:
+            d = r["data"]
+            dt = __import__('datetime').date.fromisoformat(d)
+            db.table("entradas").insert({
+                "user_id": uid,
+                "descricao": r["descricao"],
+                "valor": r["valor"],
+                "tipo": "freela",
+                "mes": dt.month,
+                "ano": dt.year,
+            }).execute()
+            inseridos += 1
+        return f"Importados {inseridos} registros com sucesso!"
+
+    # Monta preview
+    linhas = [f"📄 *Extrato identificado — {len(lans)+len(ents)} movimentacoes*\n"]
+
+    if lans:
+        total_s = sum(r["valor"] for r in lans)
+        linhas.append(f"💸 *Gastos ({len(lans)}):* total {fmt_moeda(total_s)}")
+        for r in lans[:8]:
+            linhas.append(f"  • {r['data'][8:]}/{r['data'][5:7]} {r['descricao']} — {fmt_moeda(r['valor'])}")
+        if len(lans) > 8:
+            linhas.append(f"  ... e mais {len(lans)-8} gastos")
+
+    if ents:
+        total_e = sum(r["valor"] for r in ents)
+        linhas.append(f"\n💰 *Entradas ({len(ents)}):* total {fmt_moeda(total_e)}")
+        for r in ents:
+            linhas.append(f"  • {r['data'][8:]}/{r['data'][5:7]} {r['descricao']} — {fmt_moeda(r['valor'])}")
+
+    linhas.append("\nResponda *sim* para importar tudo ou *nao* para cancelar.")
+    return _queue(user_id, inserir_tudo, "\n".join(linhas))
+
+
 def handle_message(user_id: int, texto: str, ocr_data: dict = None) -> str:
     if not is_authorized(user_id):
         return ""
