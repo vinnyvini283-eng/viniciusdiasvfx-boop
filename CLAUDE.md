@@ -207,6 +207,11 @@ URL produção: **https://vinbot-dashboard.vercel.app**
 ### OCR (foto)
 Foto enviada → `processar_foto(file_id)` → Groq Vision → categoriza automaticamente com confirmação.
 
+### Áudio / Voz
+Mensagem de voz enviada → `download_file(file_id)` → `transcrever_audio()` → Groq `whisper-large-v3` (pt) → texto transcrito exibido em itálico → processado como mensagem normal (`handle_message`).
+
+Implementado em `bot/telegram_api.py` (`transcrever_audio`) e `app.py` (handler `voice`/`audio` antes do PDF).
+
 ### Importação de extrato PDF
 PDF enviado no Telegram → `handle_pdf_extrato()` → `parse_pdf_nubank()` → LLM extrai e categoriza → preview no chat → usuário responde "sim" para confirmar.
 
