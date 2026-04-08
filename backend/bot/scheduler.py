@@ -89,7 +89,7 @@ def start_scheduler():
     if _scheduler and _scheduler.running:
         return
     _scheduler = BackgroundScheduler(timezone="America/Sao_Paulo")
-    _scheduler.add_job(lembrete_tarefas_hoje, "cron", day_of_week="mon-fri", hour=7, minute=0)
+    _scheduler.add_job(lembrete_tarefas_hoje, "cron", hour=7, minute=0)
     _scheduler.add_job(relatorio_semanal, "cron", day_of_week="mon", hour=8, minute=0)
     _scheduler.start()
     logger.info("APScheduler started")
