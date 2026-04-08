@@ -1,14 +1,56 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { LayoutDashboard, List, TrendingUp, ArrowDownUp, Briefcase, LogOut } from 'lucide-react'
+import { LayoutDashboard, Wallet, BarChart2, Briefcase, CheckSquare, TrendingUp, LogOut } from 'lucide-react'
 
-const links = [
-  { to: '/',            label: 'Dashboard',     icon: LayoutDashboard },
-  { to: '/lancamentos', label: 'Lançamentos',   icon: List },
-  { to: '/entradas',    label: 'Entradas',      icon: TrendingUp },
-  { to: '/investimentos', label: 'Investimentos', icon: ArrowDownUp },
-  { to: '/work',        label: 'Work',          icon: Briefcase },
+const contabil = [
+  { to: '/',           label: 'Dashboard',  icon: LayoutDashboard, end: true },
+  { to: '/financeiro', label: 'Financeiro', icon: Wallet },
+  { to: '/relatorios', label: 'Relatórios', icon: BarChart2 },
 ]
+
+const trabalho = [
+  { to: '/work',           label: 'Dashboard',  icon: Briefcase, end: true },
+  { to: '/work/tarefas',   label: 'Tarefas',    icon: CheckSquare },
+  { to: '/work/relatorios',label: 'Relatórios', icon: TrendingUp },
+]
+
+function NavSection({ label, links }) {
+  return (
+    <div className="mb-2">
+      <p className="px-3 mb-1 text-[10px] font-semibold tracking-widest uppercase text-muted-2">{label}</p>
+      {links.map(({ to, label: lbl, icon: Icon, end }) => (
+        <NavLink
+          key={to}
+          to={to}
+          end={end}
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer group ${
+              isActive ? 'text-white' : 'text-muted hover:text-text'
+            }`
+          }
+        >
+          {({ isActive }) => (
+            <>
+              <div
+                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                  isActive ? 'bg-accent/20' : 'group-hover:bg-card'
+                }`}
+                style={isActive ? { boxShadow: '0 0 12px rgba(249,115,22,0.3)' } : {}}
+              >
+                <Icon size={15} className={isActive ? 'text-accent' : ''} />
+              </div>
+              <span>{lbl}</span>
+              {isActive && (
+                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-accent"
+                  style={{ boxShadow: '0 0 8px rgba(249,115,22,1)' }} />
+              )}
+            </>
+          )}
+        </NavLink>
+      ))}
+    </div>
+  )
+}
 
 export default function Navbar() {
   const { signOut } = useAuth()
@@ -20,38 +62,44 @@ export default function Navbar() {
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-56 bg-surface border-r border-border flex flex-col z-20">
-      <div className="px-5 py-6 border-b border-border">
-        <span className="text-accent font-bold text-lg tracking-tight">VinBot</span>
-        <p className="text-muted text-xs mt-0.5">Assistente Pessoal</p>
+    <aside className="fixed left-0 top-0 h-full w-56 flex flex-col z-20"
+      style={{ background: '#0D0D0F', borderRight: '1px solid #1F1F23' }}>
+
+      {/* Logo */}
+      <div className="px-5 py-6">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #F97316, #FB923C)', boxShadow: '0 0 14px rgba(249,115,22,0.5)' }}>
+            <span className="text-white font-bold text-xs">V</span>
+          </div>
+          <span className="text-gradient-accent font-bold text-base tracking-tight">VinBot</span>
+        </div>
+        <div className="mt-1 flex items-center gap-1.5 ml-9">
+          <span className="status-dot status-dot-active" />
+          <span className="text-muted text-xs">Online</span>
+        </div>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1" aria-label="Navegação principal">
-        {links.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/'}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200 cursor-pointer ${
-                isActive
-                  ? 'bg-accent/10 text-accent'
-                  : 'text-muted hover:text-text hover:bg-card'
-              }`
-            }
-          >
-            <Icon size={17} />
-            {label}
-          </NavLink>
-        ))}
+      <div className="mx-4 divider" />
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-4 overflow-y-auto" aria-label="Navegação principal">
+        <NavSection label="Contábil" links={contabil} />
+        <div className="mx-1 divider my-3" />
+        <NavSection label="Trabalho" links={trabalho} />
       </nav>
 
-      <div className="px-3 pb-5">
+      <div className="mx-4 divider" />
+
+      {/* Footer */}
+      <div className="px-3 py-4">
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:text-text hover:bg-card transition-colors duration-200 cursor-pointer w-full"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted hover:text-negative transition-all duration-200 cursor-pointer w-full group"
         >
-          <LogOut size={17} />
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center group-hover:bg-negative/10 transition-colors">
+            <LogOut size={15} />
+          </div>
           Sair
         </button>
       </div>

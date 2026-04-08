@@ -68,8 +68,8 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-text">Dashboard</h1>
-          <p className="text-muted text-sm">{MONTHS[mes - 1]} {ano}</p>
+          <h1 className="text-xl font-semibold text-text tracking-tight">Visão Geral</h1>
+          <p className="text-text-2 text-sm">{MONTHS[mes - 1]} {ano}</p>
         </div>
         <select
           value={mes}
@@ -85,25 +85,25 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard label="Saldo" value={fmt(data.saldo)} icon={Wallet}
-          color={data.saldo >= 0 ? 'text-accent' : 'text-red-400'}
+          color={data.saldo >= 0 ? 'value-positive' : 'value-negative'}
           sub={`Entradas: ${fmt(data.totalEnt)}`} />
         <StatCard label="Gastos Variáveis" value={fmt(data.totalVar)} icon={TrendingDown}
-          color="text-red-400" sub={`${categorias.length} categorias`} />
+          color="value-negative" sub={`${categorias.length} categorias`} />
         <StatCard label="Despesas Fixas" value={fmt(data.totalFix)} icon={TrendingDown}
-          color="text-orange-400" />
+          color="text-warning" />
         <StatCard label="Freela / Extra" value={fmt(data.freela)} icon={TrendingUp}
-          color="text-blue-400" sub={`Salário: ${fmt(data.salario)}`} />
+          color="text-gradient-accent" sub={`Salário: ${fmt(data.salario)}`} />
         <StatCard label="Investido" value={fmt(data.totalInv)} icon={PiggyBank}
-          color="text-purple-400"
+          color="text-accent2"
           sub={`Meta: ${fmt(data.metaInv)}`} />
         <StatCard label="Meta Invest." value={`${data.pctMeta.toFixed(0)}%`} icon={Target}
-          color={data.pctMeta >= 100 ? 'text-accent' : 'text-yellow-400'}
+          color={data.pctMeta >= 100 ? 'value-positive' : 'text-warning'}
           sub={data.pctMeta >= 100 ? 'Meta atingida!' : `Faltam ${fmt(data.metaInv - data.totalInv)}`} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="card">
-          <h2 className="text-sm font-medium text-muted mb-4 uppercase tracking-wider">Gastos por Categoria</h2>
+          <h2 className="text-xs font-semibold text-muted mb-4 uppercase tracking-widest">Gastos por Categoria</h2>
           {categorias.length === 0 ? (
             <p className="text-muted text-sm text-center py-8">Nenhum lançamento este mês</p>
           ) : (
@@ -120,7 +120,7 @@ export default function Dashboard() {
         </div>
 
         <div className="card">
-          <h2 className="text-sm font-medium text-muted mb-4 uppercase tracking-wider">Últimos Lançamentos</h2>
+          <h2 className="text-xs font-semibold text-muted mb-4 uppercase tracking-widest">Últimos Lançamentos</h2>
           {lancamentos.length === 0 ? (
             <p className="text-muted text-sm text-center py-8">Nenhum lançamento</p>
           ) : (

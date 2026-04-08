@@ -4,21 +4,31 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Navbar from './components/Navbar'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
-import Lancamentos from './pages/Lancamentos'
-import Entradas from './pages/Entradas'
-import Investimentos from './pages/Investimentos'
+import Financeiro from './pages/Financeiro'
+import Relatorios from './pages/Relatorios'
 import Work from './pages/Work'
+import WorkDashboard from './pages/WorkDashboard'
+import WorkRelatorios from './pages/WorkRelatorios'
 
 function Layout({ children }) {
   return (
-    <div className="flex min-h-screen bg-bg">
+    <div className="flex min-h-screen bg-bg relative">
+      <div className="page-glow" />
       <Navbar />
-      <main className="flex-1 p-6 overflow-auto">
-        <div className="max-w-5xl mx-auto">
+      <main className="flex-1 p-6 overflow-auto ml-56 relative z-10">
+        <div className="max-w-5xl mx-auto animate-fade-up">
           {children}
         </div>
       </main>
     </div>
+  )
+}
+
+function P({ children }) {
+  return (
+    <ProtectedRoute>
+      <Layout>{children}</Layout>
+    </ProtectedRoute>
   )
 }
 
@@ -28,31 +38,21 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/" element={
-            <ProtectedRoute>
-              <Layout><Dashboard /></Layout>
-            </ProtectedRoute>
-          } />
-          <Route path="/lancamentos" element={
-            <ProtectedRoute>
-              <Layout><Lancamentos /></Layout>
-            </ProtectedRoute>
-          } />
-          <Route path="/entradas" element={
-            <ProtectedRoute>
-              <Layout><Entradas /></Layout>
-            </ProtectedRoute>
-          } />
-          <Route path="/investimentos" element={
-            <ProtectedRoute>
-              <Layout><Investimentos /></Layout>
-            </ProtectedRoute>
-          } />
-          <Route path="/work" element={
-            <ProtectedRoute>
-              <Layout><Work /></Layout>
-            </ProtectedRoute>
-          } />
+
+          {/* CONTÁBIL */}
+          <Route path="/" element={<P><Dashboard /></P>} />
+          <Route path="/financeiro" element={<P><Financeiro /></P>} />
+          <Route path="/relatorios" element={<P><Relatorios /></P>} />
+
+          {/* TRABALHO */}
+          <Route path="/work" element={<P><WorkDashboard /></P>} />
+          <Route path="/work/tarefas" element={<P><Work /></P>} />
+          <Route path="/work/relatorios" element={<P><WorkRelatorios /></P>} />
+
+          {/* Legacy redirects */}
+          <Route path="/lancamentos" element={<Navigate to="/financeiro" replace />} />
+          <Route path="/entradas" element={<Navigate to="/financeiro" replace />} />
+          <Route path="/investimentos" element={<Navigate to="/financeiro" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
