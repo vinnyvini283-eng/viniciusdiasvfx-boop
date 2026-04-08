@@ -47,6 +47,33 @@ def webhook():
     if not user_id or not chat_id:
         return jsonify({"ok": True})
 
+    # Áudio / Voz → transcrever e processar como texto
+    voice = message.get("voice") or message.get("audio")
+    if voice and not text:
+        from config import is_authorized
+        if not is_authorized(int(user_id)):
+            return jsonify({"ok": True})
+        from bot.telegram_api import download_file, transcrever_audio
+        file_id = voice.get("file_id")
+        try:
+            audio_bytes = download_file(file_id)
+            if not audio_bytes:
+                send_message(int(chat_id), "Nao consegui baixar o audio. Tente novamente.")
+                return jsonify({"ok": True})
+            texto_transcrito = transcrever_audio(audio_bytes)
+            if not texto_transcrito:
+                send_message(int(chat_id), "Nao entendi o audio. Pode repetir ou digitar?")
+                return jsonify({"ok": True})
+            logger.info(f"Audio transcrito user={user_id}: {texto_transcrito!r}")
+            send_message(int(chat_id), f"_Entendi: \"{texto_transcrito}\"_")
+            resposta = handle_message(int(user_id), texto_transcrito)
+            if resposta:
+                send_message(int(chat_id), resposta)
+        except Exception as e:
+            logger.error(f"Voice error: {e}", exc_info=True)
+            send_message(int(chat_id), "Erro ao processar o audio. Tente digitar.")
+        return jsonify({"ok": True})
+
     # PDF → importar extrato
     document = message.get("document")
     if document and not text:

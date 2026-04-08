@@ -42,6 +42,29 @@ def download_file(file_id: str) -> bytes | None:
         return None
 
 
+def transcrever_audio(audio_bytes: bytes, filename: str = "audio.ogg") -> str | None:
+    """Transcreve áudio usando Groq Whisper. Retorna o texto ou None em caso de erro."""
+    import os
+    import io
+    from groq import Groq
+
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        logger.warning("GROQ_API_KEY not set — skipping transcription")
+        return None
+    try:
+        client = Groq(api_key=api_key)
+        transcription = client.audio.transcriptions.create(
+            model="whisper-large-v3",
+            file=(filename, io.BytesIO(audio_bytes)),
+            language="pt",
+        )
+        return transcription.text.strip() or None
+    except Exception as e:
+        logger.error(f"transcrever_audio error: {e}")
+        return None
+
+
 def set_webhook(webhook_url: str) -> bool:
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
