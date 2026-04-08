@@ -3,6 +3,7 @@ import dns_fix  # must be first — patches socket DNS to use 8.8.8.8
 import os
 import logging
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 
 from bot.handlers import handle_message
 from bot.telegram_api import send_message, set_webhook
@@ -15,6 +16,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+CORS(app, origins=["https://vinbot-dashboard.vercel.app", "http://localhost:5173"])
 
 # Scheduler deve iniciar quando Gunicorn importa o módulo (não só em __main__)
 start_scheduler()
@@ -77,6 +79,27 @@ def webhook():
             pass
 
     return jsonify({"ok": True})
+
+
+@app.route("/importar-extrato", methods=["POST", "OPTIONS"])
+def importar_extrato():
+    if request.method == "OPTIONS":
+        return jsonify({"ok": True})
+    if "file" not in request.files:
+        return jsonify({"error": "Envie o PDF no campo 'file'"}), 400
+    f = request.files["file"]
+    if not f.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "Apenas arquivos PDF são suportados"}), 400
+    try:
+        from financeiro.importar import parse_pdf_nubank, save_temp_pdf
+        import os
+        tmp = save_temp_pdf(f.read())
+        result = parse_pdf_nubank(tmp)
+        os.unlink(tmp)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"importar_extrato error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/set-webhook", methods=["POST"])

@@ -150,6 +150,11 @@ export default function Financeiro() {
   const [formInv, setFormInv] = useState({ descricao: '', valor: '', tipo: 'Renda Fixa', indice: 'CDI', rentabilidade_pct: '', data: today() })
   const [formConfig, setFormConfig] = useState({ salario_fixo: '', meta_investimento_pct: '0.20', cdi_atual: '13.75' })
   const [projecao, setProjecao] = useState({ principal: '', indice: 'CDI', rentabilidade_pct: '100', meses: '12' })
+
+  // Importação de extrato
+  const [importando, setImportando] = useState(false)
+  const [importPreview, setImportPreview] = useState(null) // { lancamentos: [], entradas: [] }
+  const [importSelecionados, setImportSelecionados] = useState({ lancamentos: [], entradas: [] })
   const [formFixa, setFormFixa] = useState({ nome: '', valor: '' })
   const [saving, setSaving] = useState(false)
 
@@ -351,6 +356,54 @@ export default function Financeiro() {
     setModal(null)
   }
 
+  const handleImportPDF = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setImportando(true)
+    setImportPreview(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const hfUrl = import.meta.env.VITE_HF_API_URL || ''
+      const res = await fetch(`${hfUrl}/importar-extrato`, { method: 'POST', body: form })
+      if (!res.ok) throw new Error(await res.text())
+      const data = await res.json()
+      setImportPreview(data)
+      setImportSelecionados({
+        lancamentos: data.lancamentos.map((_, i) => i),
+        entradas: data.entradas.map((_, i) => i),
+      })
+      setModal('import_preview')
+    } catch (err) {
+      alert('Erro ao processar PDF: ' + err.message)
+    } finally {
+      setImportando(false)
+      e.target.value = ''
+    }
+  }
+
+  const confirmarImport = async () => {
+    if (!importPreview) return
+    setSaving(true)
+    const userId = await getUserId()
+    const lans = importSelecionados.lancamentos.map(i => {
+      const r = importPreview.lancamentos[i]
+      const d = new Date(r.data + 'T12:00:00')
+      return { user_id: userId, descricao: r.descricao, valor: r.valor, categoria: r.categoria, data: r.data, mes: d.getMonth() + 1, ano: d.getFullYear() }
+    })
+    const ents = importSelecionados.entradas.map(i => {
+      const r = importPreview.entradas[i]
+      const d = new Date(r.data + 'T12:00:00')
+      return { user_id: userId, descricao: r.descricao, valor: r.valor, tipo: 'freela', mes: d.getMonth() + 1, ano: d.getFullYear() }
+    })
+    if (lans.length) await supabase.from('lancamentos').insert(lans)
+    if (ents.length) await supabase.from('entradas').insert(ents)
+    setSaving(false)
+    setModal(null)
+    setImportPreview(null)
+    load()
+  }
+
   const Field = ({ label, children }) => (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-text-2 uppercase tracking-wider">{label}</label>
@@ -367,6 +420,10 @@ export default function Financeiro() {
           <p className="text-text-2 text-sm">{MONTHS[mes - 1]} {ano}</p>
         </div>
         <div className="flex items-center gap-2">
+          <label className={`btn-outline text-xs px-3 py-2 cursor-pointer flex items-center gap-1.5 ${importando ? 'opacity-50' : ''}`}>
+            {importando ? 'Processando...' : '↑ Importar extrato'}
+            <input type="file" accept=".pdf" className="hidden" onChange={handleImportPDF} disabled={importando} />
+          </label>
           <button onClick={() => setModal('config')}
             className="btn-outline text-xs px-3 py-2">
             ⚙ Salário & Meta
@@ -918,6 +975,97 @@ export default function Financeiro() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* ── MODAL PREVIEW IMPORTAÇÃO ── */}
+      {modal === 'import_preview' && importPreview && (
+        <Modal title={`Importar extrato — ${(importSelecionados.lancamentos.length + importSelecionados.entradas.length)} itens selecionados`}
+          onClose={() => setModal(null)}>
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+
+            {importPreview.lancamentos.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-text uppercase tracking-wider">Gastos ({importPreview.lancamentos.length})</p>
+                  <button onClick={() => setImportSelecionados(p => ({
+                    ...p,
+                    lancamentos: p.lancamentos.length === importPreview.lancamentos.length ? [] : importPreview.lancamentos.map((_,i) => i)
+                  }))} className="text-xs text-muted hover:text-accent">
+                    {importSelecionados.lancamentos.length === importPreview.lancamentos.length ? 'Desmarcar todos' : 'Selecionar todos'}
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  {importPreview.lancamentos.map((r, i) => {
+                    const sel = importSelecionados.lancamentos.includes(i)
+                    return (
+                      <div key={i} onClick={() => setImportSelecionados(p => ({
+                        ...p,
+                        lancamentos: sel ? p.lancamentos.filter(x => x !== i) : [...p.lancamentos, i]
+                      }))}
+                        className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors ${sel ? 'bg-accent/10 border border-accent/20' : 'bg-surface border border-transparent hover:border-border'}`}>
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${sel ? 'bg-accent border-accent' : 'border-border'}`}>
+                          {sel && <span className="text-white text-[10px]">✓</span>}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-text truncate">{r.descricao}</p>
+                          <p className="text-xs text-muted">{r.data} · {r.categoria}</p>
+                        </div>
+                        <span className="text-sm font-medium text-negative flex-shrink-0">
+                          -{new Intl.NumberFormat('pt-BR', {style:'currency',currency:'BRL'}).format(r.valor)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {importPreview.entradas.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-text uppercase tracking-wider">Entradas ({importPreview.entradas.length})</p>
+                  <button onClick={() => setImportSelecionados(p => ({
+                    ...p,
+                    entradas: p.entradas.length === importPreview.entradas.length ? [] : importPreview.entradas.map((_,i) => i)
+                  }))} className="text-xs text-muted hover:text-accent">
+                    {importSelecionados.entradas.length === importPreview.entradas.length ? 'Desmarcar todos' : 'Selecionar todos'}
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  {importPreview.entradas.map((r, i) => {
+                    const sel = importSelecionados.entradas.includes(i)
+                    return (
+                      <div key={i} onClick={() => setImportSelecionados(p => ({
+                        ...p,
+                        entradas: sel ? p.entradas.filter(x => x !== i) : [...p.entradas, i]
+                      }))}
+                        className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors ${sel ? 'bg-positive/10 border border-positive/20' : 'bg-surface border border-transparent hover:border-border'}`}>
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${sel ? 'bg-positive border-positive' : 'border-border'}`}>
+                          {sel && <span className="text-white text-[10px]">✓</span>}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-text truncate">{r.descricao}</p>
+                          <p className="text-xs text-muted">{r.data}</p>
+                        </div>
+                        <span className="text-sm font-medium text-positive flex-shrink-0">
+                          +{new Intl.NumberFormat('pt-BR', {style:'currency',currency:'BRL'}).format(r.valor)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-border mt-4">
+            <button onClick={() => setModal(null)} className="btn-ghost flex-1">Cancelar</button>
+            <button onClick={confirmarImport} className="btn-primary flex-1" disabled={saving ||
+              (importSelecionados.lancamentos.length + importSelecionados.entradas.length) === 0}>
+              {saving ? 'Importando...' : `Importar ${importSelecionados.lancamentos.length + importSelecionados.entradas.length} itens`}
+            </button>
+          </div>
         </Modal>
       )}
     </div>
