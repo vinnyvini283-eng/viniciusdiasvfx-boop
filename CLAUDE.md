@@ -24,24 +24,25 @@ vinbot/
 ├── README.md               # config YAML do HF Space
 ├── start.sh                # DNS fix + gunicorn startup
 ├── backend/
-│   ├── app.py              # Flask app: /webhook /health /set-webhook
+│   ├── app.py              # Flask: /webhook /health /set-webhook /importar-extrato (CORS ativo)
 │   ├── dns_fix.py          # monkey-patch socket para usar 8.8.8.8
 │   ├── config.py           # is_authorized(), get_supabase_user_uuid(), ALIASES_CLIENTES
-│   ├── requirements.txt
+│   ├── requirements.txt    # inclui pdfplumber, flask-cors
 │   ├── bot/
-│   │   ├── handlers.py     # handle_message(user_id, texto, ocr_data=None)
+│   │   ├── handlers.py     # handle_message() + handle_pdf_extrato()
 │   │   ├── parser.py       # Groq LLM → intent JSON + histórico por usuário
-│   │   ├── telegram_api.py # send_message, set_webhook
+│   │   ├── telegram_api.py # send_message, set_webhook, download_file
 │   │   ├── ocr.py          # processar_foto(file_id) → {valor, descricao, categoria, confianca}
-│   │   ├── scheduler.py    # APScheduler: lembrete 07h + relatório semanal segunda 08h
+│   │   ├── scheduler.py    # APScheduler: lembrete 07h seg-sex + relatório semanal segunda 08h
 │   │   └── formatter.py    # formata respostas do bot
 │   ├── db/
 │   │   └── supabase_client.py
 │   ├── financeiro/
 │   │   ├── lancamentos.py
 │   │   ├── entradas.py
-│   │   ├── fixas.py        # CRUD dinâmico de contas_fixas (não mais colunas fixas)
+│   │   ├── fixas.py        # CRUD dinâmico de contas_fixas
 │   │   ├── investimentos.py
+│   │   ├── importar.py     # parse_pdf_nubank() → {lancamentos, entradas, pagamentos_clientes}
 │   │   └── queries.py
 │   └── work/
 │       ├── tarefas.py
@@ -49,9 +50,9 @@ vinbot/
 │       └── documentos.py
 └── frontend/
     ├── src/
-    │   ├── App.jsx              # rotas separadas: /contabil/* e /trabalho/*
+    │   ├── App.jsx              # rotas: / /financeiro /relatorios /work /work/tarefas /work/relatorios
     │   ├── components/
-    │   │   ├── Navbar.jsx       # sidebar com 2 seções: CONTÁBIL e TRABALHO
+    │   │   ├── Navbar.jsx       # sidebar 2 seções: CONTÁBIL | TRABALHO
     │   │   ├── Modal.jsx        # modal reutilizável com ESC/backdrop
     │   │   ├── ProtectedRoute.jsx
     │   │   └── StatCard.jsx     # card KPI com icon, value, trend
@@ -60,16 +61,16 @@ vinbot/
     │   ├── lib/
     │   │   └── supabase.js
     │   └── pages/
-    │       ├── Login.jsx             # tabs: Entrar / Criar conta (signUp)
-    │       ├── contabil/
-    │       │   ├── Dashboard.jsx     # KPIs financeiros + PieChart + últimos lançamentos
-    │       │   ├── Financeiro.jsx    # 5 tabs: Resumo | Lançamentos | Fixas | Entradas | Investimentos
-    │       │   └── Relatorios.jsx    # 4 tabs: Evolução | Categorias | Investimentos | Clientes
-    │       └── trabalho/
-    │           ├── Dashboard.jsx     # KPIs work: tarefas pendentes, clientes, receita mês
-    │           ├── Tarefas.jsx       # CRUD tarefas + clientes + pagamentos + docs
-    │           └── Relatorios.jsx    # gráficos work: receita por cliente, tarefas por status
-    ├── .env                     # VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
+    │       ├── Login.jsx          # tabs: Entrar / Criar conta (signUp Supabase)
+    │       ├── Dashboard.jsx      # KPIs financeiros + PieChart + últimos lançamentos
+    │       ├── Financeiro.jsx     # 5 tabs: Resumo|Lançamentos|Fixas|Entradas|Investimentos
+    │       │                      # botão "Importar extrato" (PDF Nubank) + preview modal
+    │       │                      # calculadora de projeção de investimentos com gráfico
+    │       ├── Relatorios.jsx     # 4 tabs: Evolução | Categorias | Investimentos | Clientes
+    │       ├── WorkDashboard.jsx  # /work — KPIs: pendentes, vence hoje, atrasadas, receita mês
+    │       ├── Work.jsx           # /work/tarefas — CRUD tarefas+clientes+pagamentos+docs
+    │       └── WorkRelatorios.jsx # /work/relatorios — receita por cliente, tarefas por status
+    ├── .env                  # VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY + VITE_HF_API_URL
     └── package.json
 ```
 
@@ -86,10 +87,15 @@ contas_fixas     (id, user_id, nome, valor, ativo, criado_em)
                  -- bot escreve com user_id = SUPABASE_USER_UUID (uuid do auth)
 investimentos    (id, user_id, descricao, valor, tipo, rentabilidade_pct, indice,
                   mes, ano, criado_em)
-                 -- rentabilidade_pct: % anual do investimento (ex: 110 para 110% CDI)
+                 -- rentabilidade_pct: % do índice (ex: 110 = 110% CDI, 6.5 = IPCA+6.5%)
                  -- indice: 'CDI' | 'IPCA' | 'Prefixado' | 'Poupança' | null
 config_financeiro (id, user_id, salario_fixo, meta_investimento_pct, cdi_atual, criado_em)
-                 -- cdi_atual: taxa CDI base para cálculos de rentabilidade (ex: 13.75)
+                 -- cdi_atual: taxa CDI base para cálculos (ex: 13.75) — atualizar quando Copom mudar
+
+-- SQL para adicionar campos novos (rodar no Supabase SQL Editor):
+-- ALTER TABLE investimentos ADD COLUMN IF NOT EXISTS rentabilidade_pct numeric;
+-- ALTER TABLE investimentos ADD COLUMN IF NOT EXISTS indice text CHECK (indice IN ('CDI','IPCA','Prefixado','Poupança'));
+-- ALTER TABLE config_financeiro ADD COLUMN IF NOT EXISTS cdi_atual numeric DEFAULT 13.75;
 
 -- Work
 tarefas          (id, user_id, nome, descricao, feito, status, data_limite,
@@ -198,6 +204,18 @@ URL produção: **https://vinbot-dashboard.vercel.app**
 | `registrar_pagamento_cliente` | "Cida Car pagou 1500" |
 | `consulta_pagamentos_cliente` | "quanto a Cida Car me pagou?" |
 
+### OCR (foto)
+Foto enviada → `processar_foto(file_id)` → Groq Vision → categoriza automaticamente com confirmação.
+
+### Importação de extrato PDF
+PDF enviado no Telegram → `handle_pdf_extrato()` → `parse_pdf_nubank()` → LLM extrai e categoriza → preview no chat → usuário responde "sim" para confirmar.
+
+- Gastos (saídas/compras/pix enviados) → `lancamentos` com categoria automática
+- Entradas de clientes conhecidos → `pagamentos_clientes` (detecta por alias: cidacar, gspneus, aceleração, alpha)
+- Outras entradas (pix recebidos de desconhecidos) → `entradas`
+
+O mesmo endpoint `/importar-extrato` serve o dashboard web (upload via modal em Financeiro).
+
 ---
 
 ## Scheduler (APScheduler)
@@ -206,23 +224,29 @@ Roda dentro do Flask no HF Space. Timezone: `America/Sao_Paulo`.
 
 | Job | Horário | Função |
 |---|---|---|
-| Lembrete tarefas do dia | Seg–Sex 07:00 | Tarefas com `data_limite = hoje` e `feito=False` |
+| Lembrete tarefas do dia | Seg–Sex 07:00 | Tarefas com `data_limite = hoje` + atrasadas (`feito=False`) |
 | Relatório semanal | Segunda 08:00 | Gastos da semana + saldo do mês |
+
+O lembrete das 07h mostra duas seções: "Vence hoje" e "Atrasadas" (data_limite < hoje).
 
 ---
 
-## Lógica de Investimentos (planejado)
+## Lógica de Investimentos (implementado)
 
-### Campos novos na tabela `investimentos`
-- `rentabilidade_pct`: percentual anual do investimento
-  - Para CDI: percentual do CDI (ex: 110 = 110% do CDI)
-  - Para IPCA: IPCA + spread (ex: 6.5 = IPCA+6.5%)
-  - Para Prefixado: taxa fixa (ex: 13.5 = 13.5% a.a.)
-- `indice`: enum `'CDI' | 'IPCA' | 'Prefixado' | 'Poupança' | null`
+### Campos na tabela `investimentos`
+- `rentabilidade_pct`: percentual do índice
+  - CDI: 110 = 110% do CDI
+  - IPCA: 6.5 = IPCA+6.5% a.a.
+  - Prefixado: 13.5 = 13.5% a.a.
+- `indice`: `'CDI' | 'IPCA' | 'Prefixado' | 'Poupança' | null`
 
 ### Taxa CDI base
-Configurável em `config_financeiro.cdi_atual` (default: 13.75% a.a.).
-O usuário atualiza quando o Copom muda a Selic.
+`config_financeiro.cdi_atual` (default: 13.75%). Atualizar em ⚙ Salário & Meta quando Copom mudar.
+
+### Calculadora de projeção (frontend — aba Investimentos)
+- Input: principal, índice, rentabilidade_pct, período (6/12/18/24/36/60 meses)
+- Fórmula: `valor_futuro(t) = principal * (1 + taxa_mensal)^t`
+- Exibe gráfico de área (AreaChart) + valor final + ganho total
 
 ### Cálculo de rentabilidade efetiva
 ```
