@@ -40,30 +40,54 @@ def _queue(user_id: int, action, preview: str) -> str:
     return preview
 
 
+def _normalizar(texto: str) -> str:
+    """Remove pontuação e normaliza texto para comparação (lida com transcrições de áudio)."""
+    import re
+    return re.sub(r"[^\w\s]", "", texto.lower()).strip()
+
+
 def _resolve(user_id: int, texto: str) -> str:
     pending = _pending.pop(user_id)
     if time.time() - pending.get("ts", 0) > _PENDING_TTL:
         return "Confirmacao expirada. Repita o comando."
 
+    norm = _normalizar(texto)
+
     # Seleção numerada (ex: concluir_tarefa)
     if pending.get("type") == "concluir_tarefa":
         items = pending.get("items", [])
+        # Tenta número direto
         try:
-            idx = int(texto.strip()) - 1
+            idx = int(norm) - 1
             if 0 <= idx < len(items):
                 work_tarefas.concluir(items[idx]["id"])
                 return f"Tarefa concluida: *{items[idx]['nome']}*"
         except ValueError:
             pass
-        return "Numero invalido. Operacao cancelada."
+        # Tenta match por nome caso usuário tenha dito o nome via áudio
+        match = next((t for t in items if norm in t["nome"].lower()), None)
+        if match:
+            work_tarefas.concluir(match["id"])
+            return f"Tarefa concluida: *{match['nome']}*"
+        return "Nao entendi qual tarefa. Responda com o numero ou o nome."
 
-    if texto.lower().strip() in ("sim", "s", "yes", "ok", "confirmar", "1"):
+    CONFIRMACOES = {"sim", "s", "yes", "ok", "confirmar", "1", "pode", "claro",
+                    "isso", "exato", "confirma", "vai", "bora", "manda", "faz"}
+    CANCELAMENTOS = {"nao", "n", "no", "cancela", "cancelar", "volta", "para",
+                     "nope", "negativo", "esquece"}
+
+    if norm in CONFIRMACOES:
         try:
             return pending["action"]()
         except Exception as e:
             logger.error(f"Pending action error: {e}")
             return "Erro ao executar. Tente novamente."
-    return "Operacao cancelada."
+    if norm in CANCELAMENTOS:
+        return "Operacao cancelada."
+
+    # Texto não reconhecido → recolocar na fila e avisar
+    _pending[user_id] = pending
+    return "Nao entendi. Responda *sim* para confirmar ou *nao* para cancelar."
 
 
 def handle_pdf_extrato(user_id: int, file_id: str) -> str:
