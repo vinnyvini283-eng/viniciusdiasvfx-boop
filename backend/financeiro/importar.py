@@ -6,15 +6,45 @@ import json
 import logging
 import os
 import tempfile
-from datetime import date
 
 logger = logging.getLogger(__name__)
+
+# Aliases de clientes conhecidos para cruzamento com entradas
+CLIENTES_ALIASES = {
+    "cidacar": "CIDACAR",
+    "cida car": "CIDACAR",
+    "cida": "CIDACAR",
+    "gspneus": "GSPNEUS",
+    "gs pneus": "GSPNEUS",
+    "aceleração vfx": "ACELERAÇÃO VFX",
+    "aceleracao vfx": "ACELERAÇÃO VFX",
+    "aceleração": "ACELERAÇÃO VFX",
+    "vfx": "ACELERAÇÃO VFX",
+    "alpha centro": "ALPHA CENTRO",
+    "alpha": "ALPHA CENTRO",
+    "phs": "PHS I NEGOCIOS",  # exemplo do extrato real
+}
+
+
+def _detectar_cliente(descricao: str) -> str | None:
+    """Verifica se a descrição da entrada bate com algum cliente conhecido."""
+    d = descricao.lower()
+    for alias, nome in sorted(CLIENTES_ALIASES.items(), key=lambda x: -len(x[0])):
+        if alias in d:
+            return nome
+    return None
 
 
 def parse_pdf_nubank(filepath: str) -> dict:
     """
-    Lê PDF do Nubank e retorna {'lancamentos': [...], 'entradas': [...]}.
-    Usa LLM para extração + categorização automática.
+    Lê PDF do Nubank e retorna:
+    {
+      'lancamentos': [...],
+      'entradas': [...],
+      'pagamentos_clientes': [{'data', 'descricao', 'valor', 'cliente_nome'}]
+    }
+    Usa LLM para extração + categorização. Entradas de clientes conhecidos
+    vão para pagamentos_clientes em vez de entradas.
     """
     import pdfplumber
     from groq import Groq
@@ -35,22 +65,21 @@ Extrato:
 Schema de retorno:
 {{
   "lancamentos": [
-    {{"data": "YYYY-MM-DD", "descricao": "Nome limpo do estabelecimento", "valor": 0.00, "categoria": "Alimentação|Transporte|Lazer|Vestuário|Saúde|Educação|Outros"}}
+    {{"data": "YYYY-MM-DD", "descricao": "Nome limpo", "valor": 0.00, "categoria": "Alimentação|Transporte|Lazer|Vestuário|Saúde|Educação|Outros"}}
   ],
   "entradas": [
-    {{"data": "YYYY-MM-DD", "descricao": "Descrição da entrada", "valor": 0.00}}
+    {{"data": "YYYY-MM-DD", "descricao": "Nome limpo do remetente", "valor": 0.00}}
   ]
 }}
 
 Regras:
 - lancamentos = saídas: compras no débito, transferências enviadas, pagamentos
-- entradas = transferências recebidas pelo Pix
-- Ignorar: linhas "Total de entradas/saídas", "Saldo", "Rendimento", dados de banco/agência/conta, linhas de rodapé
+- entradas = transferências recebidas pelo Pix (qualquer valor recebido)
+- Ignorar: linhas "Total de entradas/saídas", "Saldo", "Rendimento", dados de banco/agência/conta, rodapé
 - Converter datas: "01 ABR 2026" → "2026-04-01"
-- Converter valores: "1.442,20" → 1442.20
-- Limpar descrições: "HIROTA EM CASA" → "Hirota em Casa", remover CPF/CNPJ, dados bancários
-- Categorias automáticas: Uber/99/taxi → Transporte; mercado/supermercado/ifood/restaurante/comida/hirota → Alimentação; farmácia/drogaria → Saúde; netflix/spotify/amazon/jogo → Lazer; academia/smart fit → Saúde
-- Transferências enviadas para pessoas físicas = lancamento categoria Outros (pode ser aluguel, empréstimo etc)
+- Converter valores: "1.442,20" → 1442.20 (sempre positivo)
+- Limpar descrições: remover CPF/CNPJ, dados bancários, manter só nome da pessoa/empresa
+- Categorias: Uber/99/taxi → Transporte; mercado/supermercado/ifood/restaurante/hirota → Alimentação; farmácia/drogaria → Saúde; netflix/spotify/amazon → Lazer; academia → Saúde; transferências enviadas para pessoas físicas → Outros
 """
 
     resp = client.chat.completions.create(
@@ -66,12 +95,33 @@ Regras:
         content = "\n".join(lines).strip()
 
     result = json.loads(content)
-
-    # Garantir estrutura mínima
     result.setdefault("lancamentos", [])
     result.setdefault("entradas", [])
 
-    logger.info(f"parse_pdf_nubank: {len(result['lancamentos'])} lançamentos, {len(result['entradas'])} entradas")
+    # Separar entradas de clientes conhecidos
+    entradas_normais = []
+    pagamentos_clientes = []
+
+    for e in result["entradas"]:
+        cliente = _detectar_cliente(e["descricao"])
+        if cliente:
+            pagamentos_clientes.append({
+                "data": e["data"],
+                "descricao": e["descricao"],
+                "valor": e["valor"],
+                "cliente_nome": cliente,
+            })
+        else:
+            entradas_normais.append(e)
+
+    result["entradas"] = entradas_normais
+    result["pagamentos_clientes"] = pagamentos_clientes
+
+    logger.info(
+        f"parse_pdf_nubank: {len(result['lancamentos'])} lançamentos, "
+        f"{len(result['entradas'])} entradas, "
+        f"{len(result['pagamentos_clientes'])} pagamentos de clientes"
+    )
     return result
 
 

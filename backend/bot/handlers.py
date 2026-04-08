@@ -88,32 +88,33 @@ def handle_pdf_extrato(user_id: int, file_id: str) -> str:
 
     lans = result.get("lancamentos", [])
     ents = result.get("entradas", [])
+    pags = result.get("pagamentos_clientes", [])
 
-    if not lans and not ents:
+    if not lans and not ents and not pags:
         return "Nao encontrei movimentacoes no extrato."
 
-    # Guarda para confirmacao
     uid = get_supabase_user_uuid()
 
     def inserir_tudo():
+        import datetime
         db = get_client()
         inseridos = 0
+
         for r in lans:
-            d = r["data"]
-            dt = __import__('datetime').date.fromisoformat(d)
+            dt = datetime.date.fromisoformat(r["data"])
             db.table("lancamentos").insert({
                 "user_id": uid,
                 "descricao": r["descricao"],
                 "valor": r["valor"],
                 "categoria": r.get("categoria", "Outros"),
-                "data": d,
+                "data": r["data"],
                 "mes": dt.month,
                 "ano": dt.year,
             }).execute()
             inseridos += 1
+
         for r in ents:
-            d = r["data"]
-            dt = __import__('datetime').date.fromisoformat(d)
+            dt = datetime.date.fromisoformat(r["data"])
             db.table("entradas").insert({
                 "user_id": uid,
                 "descricao": r["descricao"],
@@ -123,22 +124,47 @@ def handle_pdf_extrato(user_id: int, file_id: str) -> str:
                 "ano": dt.year,
             }).execute()
             inseridos += 1
+
+        for r in pags:
+            # Buscar cliente_id pelo nome canônico
+            clientes_res = db.table("clientes").select("id, nome").eq("user_id", uid).execute()
+            cliente_id = None
+            for c in (clientes_res.data or []):
+                if r["cliente_nome"].lower() in c["nome"].lower() or c["nome"].lower() in r["cliente_nome"].lower():
+                    cliente_id = c["id"]
+                    break
+            db.table("pagamentos_clientes").insert({
+                "user_id": uid,
+                "cliente_id": cliente_id,
+                "valor": r["valor"],
+                "descricao": r["descricao"],
+                "data": r["data"],
+            }).execute()
+            inseridos += 1
+
         return f"Importados {inseridos} registros com sucesso!"
 
-    # Monta preview
-    linhas = [f"📄 *Extrato identificado — {len(lans)+len(ents)} movimentacoes*\n"]
+    # Preview
+    total_itens = len(lans) + len(ents) + len(pags)
+    linhas = [f"📄 *Extrato — {total_itens} movimentacoes identificadas*\n"]
 
     if lans:
         total_s = sum(r["valor"] for r in lans)
-        linhas.append(f"💸 *Gastos ({len(lans)}):* total {fmt_moeda(total_s)}")
+        linhas.append(f"💸 *Gastos ({len(lans)}):* {fmt_moeda(total_s)}")
         for r in lans[:8]:
             linhas.append(f"  • {r['data'][8:]}/{r['data'][5:7]} {r['descricao']} — {fmt_moeda(r['valor'])}")
         if len(lans) > 8:
-            linhas.append(f"  ... e mais {len(lans)-8} gastos")
+            linhas.append(f"  _... e mais {len(lans)-8} gastos_")
+
+    if pags:
+        total_p = sum(r["valor"] for r in pags)
+        linhas.append(f"\n🤝 *Pagamentos de clientes ({len(pags)}):* {fmt_moeda(total_p)}")
+        for r in pags:
+            linhas.append(f"  • {r['data'][8:]}/{r['data'][5:7]} {r['cliente_nome']} — {fmt_moeda(r['valor'])}")
 
     if ents:
         total_e = sum(r["valor"] for r in ents)
-        linhas.append(f"\n💰 *Entradas ({len(ents)}):* total {fmt_moeda(total_e)}")
+        linhas.append(f"\n💰 *Outras entradas ({len(ents)}):* {fmt_moeda(total_e)}")
         for r in ents:
             linhas.append(f"  • {r['data'][8:]}/{r['data'][5:7]} {r['descricao']} — {fmt_moeda(r['valor'])}")
 
