@@ -224,7 +224,7 @@ Roda dentro do Flask no HF Space. Timezone: `America/Sao_Paulo`.
 
 | Job | Horário | Função |
 |---|---|---|
-| Lembrete tarefas do dia | Seg–Sex 07:00 | Tarefas com `data_limite = hoje` + atrasadas (`feito=False`) |
+| Lembrete tarefas do dia | Todos os dias 07:00 | Tarefas com `data_limite = hoje` + atrasadas (`feito=False`) |
 | Relatório semanal | Segunda 08:00 | Gastos da semana + saldo do mês |
 
 O lembrete das 07h mostra duas seções: "Vence hoje" e "Atrasadas" (data_limite < hoje).
