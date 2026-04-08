@@ -1,42 +1,58 @@
-from datetime import datetime, timezone
 from db.supabase_client import get_client
-
-CAMPOS = [
-    "aluguel", "condominio", "energia", "agua",
-    "internet_telefone", "plano_saude", "seguro", "mensalidade"
-]
+import os
 
 
-def get_ou_criar(mes: int, ano: int) -> dict:
+def _user_id():
+    return os.getenv("BOT_USER_ID")  # fallback; handlers passam user_id diretamente
+
+
+def listar(user_id: str = None) -> list:
     db = get_client()
-    result = (db.table("despesas_fixas")
-                .select("*")
-                .eq("mes", mes)
-                .eq("ano", ano)
-                .execute())
-    if result.data:
-        return result.data[0]
-    novo = db.table("despesas_fixas").insert({"mes": mes, "ano": ano}).execute()
-    return novo.data[0]
+    q = db.table("contas_fixas").select("*").eq("ativo", True).order("criado_em")
+    if user_id:
+        q = q.eq("user_id", user_id)
+    return q.execute().data or []
 
 
-def atualizar_campo(mes: int, ano: int, campo: str, valor: float) -> dict:
-    if campo not in CAMPOS:
-        raise ValueError(f"Campo inválido: {campo}. Válidos: {CAMPOS}")
+def adicionar(nome: str, valor: float, user_id: str) -> dict:
     db = get_client()
-    agora = datetime.now(timezone.utc).isoformat()
-    # UPSERT atômico — evita race condition entre SELECT+INSERT e UPDATE
-    result = (db.table("despesas_fixas")
-                .upsert({
-                    "mes": mes,
-                    "ano": ano,
-                    campo: round(float(valor), 2),
-                    "atualizado_em": agora,
-                }, on_conflict="mes,ano")
-                .execute())
+    result = db.table("contas_fixas").insert({
+        "user_id": user_id,
+        "nome": nome,
+        "valor": round(float(valor), 2),
+        "ativo": True,
+    }).execute()
     return result.data[0]
 
 
-def get_total(mes: int, ano: int) -> float:
-    fixas = get_ou_criar(mes, ano)
-    return sum(float(fixas.get(c) or 0) for c in CAMPOS)
+def atualizar_por_nome(nome_busca: str, valor: float, user_id: str) -> dict | None:
+    """Busca conta pelo nome (case-insensitive parcial) e atualiza o valor."""
+    db = get_client()
+    contas = listar(user_id)
+    match = next(
+        (c for c in contas if nome_busca.lower() in c["nome"].lower()),
+        None
+    )
+    if not match:
+        return None
+    result = db.table("contas_fixas").update({
+        "valor": round(float(valor), 2)
+    }).eq("id", match["id"]).execute()
+    return result.data[0]
+
+
+def deletar_por_nome(nome_busca: str, user_id: str) -> dict | None:
+    db = get_client()
+    contas = listar(user_id)
+    match = next(
+        (c for c in contas if nome_busca.lower() in c["nome"].lower()),
+        None
+    )
+    if not match:
+        return None
+    db.table("contas_fixas").delete().eq("id", match["id"]).execute()
+    return match
+
+
+def get_total(user_id: str = None) -> float:
+    return sum(float(c["valor"] or 0) for c in listar(user_id))

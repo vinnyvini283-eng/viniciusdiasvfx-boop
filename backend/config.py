@@ -44,6 +44,11 @@ def is_authorized(user_id: int) -> bool:
     return str(user_id) in allowed
 
 
+def get_supabase_user_uuid() -> str | None:
+    """UUID do usuário no Supabase Auth — necessário para inserções com RLS."""
+    return os.getenv("SUPABASE_USER_UUID")
+
+
 def resolver_cliente(texto: str) -> str | None:
     t = texto.lower().strip()
     for alias in sorted(ALIASES_CLIENTES, key=len, reverse=True):

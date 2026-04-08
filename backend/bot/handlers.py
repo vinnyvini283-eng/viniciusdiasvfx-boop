@@ -7,9 +7,9 @@ from bot.formatter import (
     msg_confirmacao_delete, msg_confirmacao_registro, fmt_lancamento,
 )
 from bot.parser import parse_mensagem, clear_history
-from config import DESPESAS_FIXAS_MAP, ALIASES_CLIENTES, is_authorized
+from config import ALIASES_CLIENTES, is_authorized
 from financeiro import lancamentos, entradas, investimentos
-from financeiro.fixas import atualizar_campo as fixas_atualizar
+from financeiro import fixas as financeiro_fixas
 from financeiro.investimentos import get_total_ano
 from financeiro.queries import (
     get_resumo_mes, get_gastos_hoje, get_gastos_semana,
@@ -163,20 +163,63 @@ def _route(user_id: int, parsed: dict, intencao: str) -> str:
             return _queue(user_id, do, msg_confirmacao_registro(descricao, valor))
         return do()
 
+    elif intencao == "adicionar_fixa":
+        nome = parsed.get("descricao") or parsed.get("tarefa_nome")
+        valor = parsed.get("valor") or 0
+        if not nome:
+            return "Qual o nome da conta fixa? Ex: 'adicionar fixa Academia 150'"
+        from config import get_supabase_user_uuid
+        uid = get_supabase_user_uuid()
+        if not uid:
+            return "Configure SUPABASE_USER_UUID nas variáveis do HF Space."
+        financeiro_fixas.adicionar(nome, valor, uid)
+        return f"Conta fixa adicionada: *{nome}* — {fmt_moeda(valor)}"
+
     elif intencao == "atualizar_fixa":
-        desc_raw = (parsed.get("descricao") or "").lower()
-        campo = None
-        for alias in sorted(DESPESAS_FIXAS_MAP, key=len, reverse=True):
-            if alias in desc_raw:
-                campo = DESPESAS_FIXAS_MAP[alias]
-                break
-        if not campo:
-            return "Qual despesa fixa? (aluguel, energia, água, internet, condomínio, seguro, mensalidade)"
+        nome_busca = (parsed.get("descricao") or "").strip()
         valor = parsed.get("valor")
+        if not nome_busca:
+            return "Qual conta fixa atualizar? Ex: 'aluguel agora é 1500'"
         if not valor:
-            return "Qual o valor?"
-        fixas_atualizar(mes, ano, campo, valor)
-        return f"✅ {campo.replace('_', ' ').title()} atualizado: {fmt_moeda(valor)}"
+            return "Qual o novo valor?"
+        from config import get_supabase_user_uuid
+        uid = get_supabase_user_uuid()
+        if not uid:
+            return "Configure SUPABASE_USER_UUID nas variáveis do HF Space."
+        result = financeiro_fixas.atualizar_por_nome(nome_busca, valor, uid)
+        if not result:
+            return f"Conta '*{nome_busca}*' não encontrada. Verifique o nome ou adicione primeiro."
+        return f"Conta fixa atualizada: *{result['nome']}* → {fmt_moeda(valor)}"
+
+    elif intencao == "deletar_fixa":
+        nome_busca = (parsed.get("descricao") or "").strip()
+        if not nome_busca:
+            return "Qual conta fixa excluir?"
+        from config import get_supabase_user_uuid
+        uid = get_supabase_user_uuid()
+        if not uid:
+            return "Configure SUPABASE_USER_UUID nas variáveis do HF Space."
+
+        def do():
+            r = financeiro_fixas.deletar_por_nome(nome_busca, uid)
+            if not r:
+                return f"Conta '*{nome_busca}*' não encontrada."
+            return f"Conta fixa excluída: *{r['nome']}*"
+
+        return _queue(user_id, do, f"Excluir conta fixa '*{nome_busca}*'?\n\nResponda *sim* para confirmar.")
+
+    elif intencao == "consulta_fixas":
+        from config import get_supabase_user_uuid
+        uid = get_supabase_user_uuid()
+        contas = financeiro_fixas.listar(uid)
+        if not contas:
+            return "Nenhuma conta fixa cadastrada."
+        total = sum(float(c["valor"] or 0) for c in contas)
+        linhas = ["Contas fixas ativas:\n"]
+        for c in contas:
+            linhas.append(f"• {c['nome']}: {fmt_moeda(c['valor'])}")
+        linhas.append(f"\nTotal: {fmt_moeda(total)}")
+        return "\n".join(linhas)
 
     elif intencao == "atualizar_salario":
         valor = parsed.get("valor")

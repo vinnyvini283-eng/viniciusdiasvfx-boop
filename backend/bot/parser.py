@@ -43,7 +43,10 @@ Intenções financeiras:
 - inserir_lancamento: gasto variável (mercado, restaurante, farmácia, gasolina, etc.)
 - inserir_entrada: freela, pagamento recebido, receita extra (SEM ser de cliente específico)
 - inserir_investimento: investimento (tesouro, ações, poupança, fundo, etc.)
-- atualizar_fixa: despesa fixa (aluguel, energia, água, internet, condomínio, seguro, mensalidade)
+- adicionar_fixa: criar nova conta fixa (ex: "adicionar fixa Academia 150", "nova fixa Netflix 55")
+- atualizar_fixa: atualizar valor de conta fixa existente (ex: "aluguel agora é 1500", "energia virou 280")
+- deletar_fixa: excluir conta fixa (ex: "remove a fixa Netflix", "deleta seguro") confirmacao_necessaria=true
+- consulta_fixas: listar contas fixas ativas (ex: "minhas fixas", "quais são minhas contas fixas")
 - atualizar_salario: atualizar salário fixo mensal
 - consulta_hoje: quanto gastei hoje
 - consulta_semana: quanto gastei essa semana
@@ -71,6 +74,9 @@ Regras:
 - "[Cliente] pagou [valor]" → registrar_pagamento_cliente com cliente e valor
 - "nova tarefa [cliente]: [nome] até [data]" → nova_tarefa com tarefa_nome, cliente e data_limite
 - "pendentes" / "tarefas" → consulta_pendentes
+- "adicionar/nova fixa [nome] [valor]" → adicionar_fixa, descricao=nome, valor=valor
+- "aluguel agora é X" / "[nome da fixa] virou X" → atualizar_fixa, descricao=nome, valor=X
+- "minhas fixas" / "contas fixas" → consulta_fixas
 - "apaga/remove/cancela/deleta" → intencao começa com "deletar_", confirmacao_necessaria=true
 - confirmacao_necessaria=true se valor > 500 OU intencao começa com "deletar_"
 - Data padrão: hoje ({today})
