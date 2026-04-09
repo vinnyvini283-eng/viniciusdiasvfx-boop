@@ -175,7 +175,8 @@ def webhook_legacy():
     user_id = message.get("from", {}).get("id")
     if user_id and not is_authorized(int(user_id)):
         return jsonify({"ok": True})
-    _process_telegram_update(data)
+    supabase_uid = os.getenv("SUPABASE_USER_UUID")
+    _process_telegram_update(data, supabase_uid=supabase_uid)
     return jsonify({"ok": True})
 
 

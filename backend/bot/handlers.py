@@ -117,7 +117,8 @@ def handle_pdf_extrato(user_id: int, file_id: str) -> str:
     if not lans and not ents and not pags:
         return "Nao encontrei movimentacoes no extrato."
 
-    uid = get_supabase_user_uuid()
+    from db.user_context import get_user_id
+    uid = get_user_id() or get_supabase_user_uuid()
 
     def inserir_tudo():
         import datetime
