@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import Modal from '../components/Modal'
+import EmptyState from '../components/EmptyState'
 import { Trash2, CheckCircle2, Circle, Plus, ExternalLink } from 'lucide-react'
 
 const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
@@ -217,7 +218,11 @@ export default function Work() {
 
               <div className="card p-0 overflow-hidden">
                 {tasks.length === 0 ? (
-                  <p className="text-center py-16 text-muted text-sm">Nenhuma tarefa ainda</p>
+                  <EmptyState
+                    icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12l2 2 4-4"/></svg>}
+                    title="Nenhuma tarefa ainda"
+                    subtitle="Registre pelo Telegram: 'nova tarefa GSPNEUS: relatório até sexta'"
+                  />
                 ) : (
                   <ul className="divide-y divide-border">
                     {tasks.map(t => (

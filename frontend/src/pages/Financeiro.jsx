@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import Modal from '../components/Modal'
+import EmptyState from '../components/EmptyState'
+import BarraProgresso from '../components/BarraProgresso'
 import { Trash2, Check, X, Edit2, Plus, ToggleLeft, ToggleRight } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
@@ -470,15 +472,12 @@ export default function Financeiro() {
                 ))}
               </div>
 
-              <div className="card">
-                <div className="flex justify-between text-sm mb-3">
+              <div className="card space-y-2">
+                <div className="flex justify-between text-sm">
                   <span className="text-muted">Meta de Investimento ({((config?.meta_investimento_pct || 0.20) * 100).toFixed(0)}%)</span>
-                  <span className="text-text font-medium">{fmt(totalInv)} / {fmt(metaInv)}</span>
+                  <span className="text-xs text-muted">{fmt(totalInv)} de {fmt(metaInv)}</span>
                 </div>
-                <div className="h-2 bg-surface rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all duration-700 ${pctMeta >= 100 ? 'bg-positive' : 'bg-accent'}`}
-                    style={{ width: `${Math.min(pctMeta, 100)}%` }} />
-                </div>
+                <BarraProgresso pct={pctMeta} />
               </div>
 
               <div className="card space-y-2.5">
@@ -531,7 +530,13 @@ export default function Financeiro() {
                   </thead>
                   <tbody>
                     {lans_filtrados.length === 0 ? (
-                      <tr><td colSpan={5} className="text-center py-16 text-muted">Nenhum lançamento</td></tr>
+                      <tr><td colSpan={5}>
+                        <EmptyState
+                          icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M8 15h4"/></svg>}
+                          title="Nenhum lançamento ainda"
+                          subtitle="Registre pelo Telegram: 'gastei 50 no mercado'"
+                        />
+                      </td></tr>
                     ) : lans_filtrados.map(l => (
                       <tr key={l.id} className="border-b border-border/40 hover:bg-surface/40 transition-colors">
                         <td className="px-4 py-3 text-text-2 text-xs whitespace-nowrap">
@@ -591,7 +596,11 @@ export default function Financeiro() {
 
               <div className="card p-0 overflow-hidden">
                 {contasFixas.length === 0 ? (
-                  <p className="text-center py-16 text-muted text-sm">Nenhuma conta fixa cadastrada</p>
+                  <EmptyState
+                    icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 12h18M3 6h18M3 18h18"/></svg>}
+                    title="Nenhuma conta fixa cadastrada"
+                    subtitle="Clique em + Nova Conta para adicionar"
+                  />
                 ) : (
                   <ul className="divide-y divide-border">
                     {contasFixas.map(c => (

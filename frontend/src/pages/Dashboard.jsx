@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import StatCard from '../components/StatCard'
+import EmptyState from '../components/EmptyState'
+import BarraProgresso from '../components/BarraProgresso'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { Wallet, TrendingUp, TrendingDown, PiggyBank, Target } from 'lucide-react'
 
@@ -96,16 +98,29 @@ export default function Dashboard() {
         <StatCard label="Investido" value={fmt(data.totalInv)} icon={PiggyBank}
           color="text-accent2"
           sub={`Meta: ${fmt(data.metaInv)}`} />
-        <StatCard label="Meta Invest." value={`${data.pctMeta.toFixed(0)}%`} icon={Target}
-          color={data.pctMeta >= 100 ? 'value-positive' : 'text-warning'}
-          sub={data.pctMeta >= 100 ? 'Meta atingida!' : `Faltam ${fmt(data.metaInv - data.totalInv)}`} />
+        <div className="card flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-surface flex items-center justify-center flex-shrink-0">
+              <Target size={15} className="text-muted" />
+            </div>
+            <p className="text-xs text-muted uppercase tracking-widest">Meta Invest.</p>
+          </div>
+          <BarraProgresso pct={data.pctMeta} />
+          <p className="text-xs text-muted">
+            {data.pctMeta >= 100 ? '✓ Meta atingida!' : `Faltam ${fmt(data.metaInv - data.totalInv)}`}
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="card">
           <h2 className="text-xs font-semibold text-muted mb-4 uppercase tracking-widest">Gastos por Categoria</h2>
           {categorias.length === 0 ? (
-            <p className="text-muted text-sm text-center py-8">Nenhum lançamento este mês</p>
+            <EmptyState
+              icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>}
+              title="Nenhum gasto este mês"
+              subtitle="Registre pelo Telegram: 'gastei 50 no mercado'"
+            />
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
@@ -122,7 +137,11 @@ export default function Dashboard() {
         <div className="card">
           <h2 className="text-xs font-semibold text-muted mb-4 uppercase tracking-widest">Últimos Lançamentos</h2>
           {lancamentos.length === 0 ? (
-            <p className="text-muted text-sm text-center py-8">Nenhum lançamento</p>
+            <EmptyState
+              icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>}
+              title="Nenhum lançamento ainda"
+              subtitle="Registre pelo Telegram ou clique em + Novo"
+            />
           ) : (
             <div className="space-y-3">
               {lancamentos.map(l => (
