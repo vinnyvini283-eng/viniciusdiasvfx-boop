@@ -124,10 +124,14 @@ def handle_pdf_extrato(user_id: int, file_id: str) -> str:
     def inserir_tudo():
         from financeiro.lancamentos import inserir as ins_lancamento
         from financeiro.entradas import inserir as ins_entrada
+        from db.supabase_client import get_client as _get_client
         import datetime
+
+        logger.info(f"inserir_tudo v3: lans={len(lans)} ents={len(ents)} pags={len(pags)} uid={uid}")
 
         inseridos = 0
         erros = []
+        primeiro_erro_detalhe = None
 
         for r in lans:
             try:
@@ -142,6 +146,8 @@ def handle_pdf_extrato(user_id: int, file_id: str) -> str:
             except Exception as e:
                 logger.error(f"Erro lancamento '{r.get('descricao')}': {e}")
                 erros.append(r.get("descricao", "?"))
+                if primeiro_erro_detalhe is None:
+                    primeiro_erro_detalhe = str(e)[:120]
 
         for r in ents:
             try:
@@ -156,20 +162,14 @@ def handle_pdf_extrato(user_id: int, file_id: str) -> str:
             except Exception as e:
                 logger.error(f"Erro entrada '{r.get('descricao')}': {e}")
                 erros.append(r.get("descricao", "?"))
+                if primeiro_erro_detalhe is None:
+                    primeiro_erro_detalhe = str(e)[:120]
 
         for r in pags:
             try:
-                db = get_client()
+                db2 = _get_client()
                 dt = datetime.date.fromisoformat(r["data"])
-                # Buscar cliente_id (sem falhar se não encontrado)
-                clientes_res = db.table("clientes").select("id,nome").eq("user_id", uid).execute()
-                cliente_id = None
-                for c in (clientes_res.data or []):
-                    if (r["cliente_nome"].lower() in c["nome"].lower()
-                            or c["nome"].lower() in r["cliente_nome"].lower()):
-                        cliente_id = c["id"]
-                        break
-                # Inserir como entrada financeira também
+                # Inserir como entrada financeira
                 entrada = ins_entrada(
                     descricao=r["descricao"],
                     valor=round(float(r["valor"]), 2),
@@ -177,28 +177,41 @@ def handle_pdf_extrato(user_id: int, file_id: str) -> str:
                     data=dt,
                 )
                 entrada_id = (entrada or {}).get("id")
-                payload = {
-                    "valor": round(float(r["valor"]), 2),
-                    "descricao": r["descricao"],
-                    "data": str(dt),
-                    "user_id": uid,
-                }
-                if cliente_id:
-                    payload["cliente_id"] = cliente_id
-                if entrada_id:
-                    payload["entrada_id"] = entrada_id
-                db.table("pagamentos_clientes").insert(payload).execute()
+                # Tentar vincular a pagamentos_clientes (ignorar se falhar)
+                try:
+                    clientes_res = db2.table("clientes").select("id,nome").eq("user_id", uid).execute()
+                    cliente_id = None
+                    for c in (clientes_res.data or []):
+                        if (r["cliente_nome"].lower() in c["nome"].lower()
+                                or c["nome"].lower() in r["cliente_nome"].lower()):
+                            cliente_id = c["id"]
+                            break
+                    payload = {"valor": round(float(r["valor"]), 2), "descricao": r["descricao"], "data": str(dt)}
+                    if uid:
+                        payload["user_id"] = uid
+                    if cliente_id:
+                        payload["cliente_id"] = cliente_id
+                    if entrada_id:
+                        payload["entrada_id"] = entrada_id
+                    db2.table("pagamentos_clientes").insert(payload).execute()
+                except Exception as ep:
+                    logger.warning(f"pagamentos_clientes insert falhou (ignorado): {ep}")
                 inseridos += 1
             except Exception as e:
-                logger.error(f"Erro pagamento_cliente '{r.get('cliente_nome')}': {e}")
+                logger.error(f"Erro pag_cliente '{r.get('cliente_nome')}': {e}")
                 erros.append(r.get("cliente_nome", "?"))
+                if primeiro_erro_detalhe is None:
+                    primeiro_erro_detalhe = str(e)[:120]
+
+        logger.info(f"inserir_tudo v3: inseridos={inseridos} erros={len(erros)}")
 
         if not inseridos and erros:
-            return f"Erro ao importar: {erros[0]}"
+            detalhe = f"\nDetalhe: {primeiro_erro_detalhe}" if primeiro_erro_detalhe else ""
+            return f"Falha ao importar ({len(erros)} itens).{detalhe}"
 
         msg = f"Importados {inseridos} registros com sucesso!"
         if erros:
-            msg += f"\n⚠️ {len(erros)} falha(s): {', '.join(erros[:3])}"
+            msg += f"\n⚠️ {len(erros)} item(s) nao importado(s): {', '.join(erros[:3])}"
         return msg
 
     # Preview
