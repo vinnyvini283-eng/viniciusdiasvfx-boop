@@ -122,48 +122,84 @@ def handle_pdf_extrato(user_id: int, file_id: str) -> str:
     uid = get_user_id() or get_supabase_user_uuid()
 
     def inserir_tudo():
+        from financeiro.lancamentos import inserir as ins_lancamento
+        from financeiro.entradas import inserir as ins_entrada
         import datetime
-        db = get_client()
+
         inseridos = 0
+        erros = []
 
         for r in lans:
-            db.table("lancamentos").insert({
-                "user_id": uid,
-                "descricao": r["descricao"],
-                "valor": r["valor"],
-                "categoria": r.get("categoria", "Outros"),
-                "data": r["data"],
-            }).execute()
-            inseridos += 1
+            try:
+                dt = datetime.date.fromisoformat(r["data"])
+                ins_lancamento(
+                    descricao=r["descricao"],
+                    categoria=r.get("categoria", "Outros"),
+                    valor=round(float(r["valor"]), 2),
+                    data=dt,
+                )
+                inseridos += 1
+            except Exception as e:
+                logger.error(f"Erro lancamento '{r.get('descricao')}': {e}")
+                erros.append(r.get("descricao", "?"))
 
         for r in ents:
-            db.table("entradas").insert({
-                "user_id": uid,
-                "descricao": r["descricao"],
-                "valor": r["valor"],
-                "tipo": "freela",
-                "data": r["data"],
-            }).execute()
-            inseridos += 1
+            try:
+                dt = datetime.date.fromisoformat(r["data"])
+                ins_entrada(
+                    descricao=r["descricao"],
+                    valor=round(float(r["valor"]), 2),
+                    tipo="freela",
+                    data=dt,
+                )
+                inseridos += 1
+            except Exception as e:
+                logger.error(f"Erro entrada '{r.get('descricao')}': {e}")
+                erros.append(r.get("descricao", "?"))
 
         for r in pags:
-            # Buscar cliente_id pelo nome canônico
-            clientes_res = db.table("clientes").select("id, nome").eq("user_id", uid).execute()
-            cliente_id = None
-            for c in (clientes_res.data or []):
-                if r["cliente_nome"].lower() in c["nome"].lower() or c["nome"].lower() in r["cliente_nome"].lower():
-                    cliente_id = c["id"]
-                    break
-            db.table("pagamentos_clientes").insert({
-                "user_id": uid,
-                "cliente_id": cliente_id,
-                "valor": r["valor"],
-                "descricao": r["descricao"],
-                "data": r["data"],
-            }).execute()
-            inseridos += 1
+            try:
+                db = get_client()
+                dt = datetime.date.fromisoformat(r["data"])
+                # Buscar cliente_id (sem falhar se não encontrado)
+                clientes_res = db.table("clientes").select("id,nome").eq("user_id", uid).execute()
+                cliente_id = None
+                for c in (clientes_res.data or []):
+                    if (r["cliente_nome"].lower() in c["nome"].lower()
+                            or c["nome"].lower() in r["cliente_nome"].lower()):
+                        cliente_id = c["id"]
+                        break
+                # Inserir como entrada financeira também
+                entrada = ins_entrada(
+                    descricao=r["descricao"],
+                    valor=round(float(r["valor"]), 2),
+                    tipo="freela",
+                    data=dt,
+                )
+                entrada_id = (entrada or {}).get("id")
+                payload = {
+                    "valor": round(float(r["valor"]), 2),
+                    "descricao": r["descricao"],
+                    "data": str(dt),
+                    "user_id": uid,
+                }
+                if cliente_id:
+                    payload["cliente_id"] = cliente_id
+                if entrada_id:
+                    payload["entrada_id"] = entrada_id
+                db.table("pagamentos_clientes").insert(payload).execute()
+                inseridos += 1
+            except Exception as e:
+                logger.error(f"Erro pagamento_cliente '{r.get('cliente_nome')}': {e}")
+                erros.append(r.get("cliente_nome", "?"))
 
-        return f"Importados {inseridos} registros com sucesso!"
+        if not inseridos and erros:
+            return f"Erro ao importar: {erros[0]}"
+
+        msg = f"Importados {inseridos} registros com sucesso!"
+        if erros:
+            msg += f"\n⚠️ {len(erros)} falha(s): {', '.join(erros[:3])}"
+        return msg
 
     # Preview
     total_itens = len(lans) + len(ents) + len(pags)
