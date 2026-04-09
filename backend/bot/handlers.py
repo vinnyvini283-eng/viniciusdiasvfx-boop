@@ -80,8 +80,9 @@ def _resolve(user_id: int, texto: str) -> str:
         try:
             return pending["action"]()
         except Exception as e:
-            logger.error(f"Pending action error: {e}")
-            return "Erro ao executar. Tente novamente."
+            import traceback
+            logger.error(f"Pending action error: {e}\n{traceback.format_exc()}")
+            return f"Erro ao executar: {e}"
     if norm in CANCELAMENTOS:
         return "Operacao cancelada."
 
