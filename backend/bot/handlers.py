@@ -126,27 +126,22 @@ def handle_pdf_extrato(user_id: int, file_id: str) -> str:
         inseridos = 0
 
         for r in lans:
-            dt = datetime.date.fromisoformat(r["data"])
             db.table("lancamentos").insert({
                 "user_id": uid,
                 "descricao": r["descricao"],
                 "valor": r["valor"],
                 "categoria": r.get("categoria", "Outros"),
                 "data": r["data"],
-                "mes": dt.month,
-                "ano": dt.year,
             }).execute()
             inseridos += 1
 
         for r in ents:
-            dt = datetime.date.fromisoformat(r["data"])
             db.table("entradas").insert({
                 "user_id": uid,
                 "descricao": r["descricao"],
                 "valor": r["valor"],
                 "tipo": "freela",
-                "mes": dt.month,
-                "ano": dt.year,
+                "data": r["data"],
             }).execute()
             inseridos += 1
 
