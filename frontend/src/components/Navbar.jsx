@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { LayoutDashboard, Wallet, BarChart2, Briefcase, CheckSquare, TrendingUp, LogOut, Settings, X } from 'lucide-react'
+import { LayoutDashboard, Wallet, BarChart2, Briefcase, CheckSquare, TrendingUp, LogOut, Settings } from 'lucide-react'
 
 const contabil = [
   { to: '/',             label: 'Dashboard',    icon: LayoutDashboard, end: true },
@@ -77,24 +77,9 @@ export default function Navbar({ open, onClose }) {
 
   return (
     <>
-      {/* Backdrop (mobile only) */}
-      {open && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30 md:hidden"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Sidebar */}
+      {/* Sidebar — hidden on mobile, always visible on md+ */}
       <aside
-        className={`
-          fixed left-0 top-0 h-full z-40 flex flex-col
-          transition-all duration-200
-          group/sidebar
-          ${open ? 'translate-x-0' : '-translate-x-full'}
-          md:translate-x-0
-          w-56 md:w-14 md:hover:w-56 lg:w-56
-        `}
+        className="hidden md:flex md:flex-col fixed left-0 top-0 h-full z-40 transition-all duration-200 group/sidebar w-14 hover:w-56 lg:w-56"
         style={{ background: '#0D0D0F', borderRight: '1px solid #1F1F23' }}
       >
         {/* Logo */}
@@ -114,10 +99,6 @@ export default function Navbar({ open, onClose }) {
               </div>
             </div>
           </div>
-          {/* Close button (mobile only) */}
-          <button onClick={onClose} className="md:hidden text-muted hover:text-text p-1">
-            <X size={18} />
-          </button>
         </div>
 
         <div className="mx-4 divider" />

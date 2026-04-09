@@ -148,20 +148,22 @@ export default function Relatorios() {
         </select>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-surface p-1 rounded-xl border border-border w-fit">
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              tab === id ? 'bg-accent/15 text-accent' : 'text-muted hover:text-text'
-            }`}
-          >
-            <Icon size={15} />
-            {label}
-          </button>
-        ))}
+      {/* Tabs — scrollable on mobile */}
+      <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0 pb-0.5">
+        <div className="flex gap-1 bg-surface p-1 rounded-xl border border-border w-max min-w-full md:w-fit md:min-w-0">
+          {TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                tab === id ? 'bg-accent/15 text-accent' : 'text-muted hover:text-text'
+              }`}
+            >
+              <Icon size={15} />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -174,18 +176,22 @@ export default function Relatorios() {
           {tab === 'evolucao' && (
             <div className="card">
               <h2 className="text-sm font-medium text-muted mb-6 uppercase tracking-wider">Evolução Mensal {ano}</h2>
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={evolucao} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="mes" tick={{ fill: '#94A3B8', fontSize: 12 }} />
-                  <YAxis tickFormatter={fmtShort} tick={{ fill: '#94A3B8', fontSize: 11 }} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [fmt(v), n]} />
-                  <Legend formatter={(v) => <span style={{ color: '#94A3B8', fontSize: 12 }}>{v}</span>} />
-                  <Line type="monotone" dataKey="entradas" name="Entradas" stroke="#22C55E" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="gastos" name="Gastos" stroke="#EF4444" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="investido" name="Investido" stroke="#8B5CF6" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
+              <div className="overflow-x-auto -mx-5">
+                <div style={{ minWidth: 480 }} className="px-2">
+                  <ResponsiveContainer width="100%" height={260}>
+                    <LineChart data={evolucao} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis dataKey="mes" tick={{ fill: '#94A3B8', fontSize: 11 }} />
+                      <YAxis tickFormatter={fmtShort} tick={{ fill: '#94A3B8', fontSize: 10 }} width={46} />
+                      <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [fmt(v), n]} />
+                      <Legend formatter={(v) => <span style={{ color: '#94A3B8', fontSize: 11 }}>{v}</span>} />
+                      <Line type="monotone" dataKey="entradas" name="Entradas" stroke="#22C55E" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="gastos" name="Gastos" stroke="#EF4444" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="investido" name="Investido" stroke="#8B5CF6" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
 
               {/* Tabela resumo */}
               <div className="mt-6 overflow-x-auto">
@@ -274,15 +280,19 @@ export default function Relatorios() {
           {tab === 'investimentos' && (
             <div className="card">
               <h2 className="text-sm font-medium text-muted mb-6 uppercase tracking-wider">Investimentos por Mês — {ano}</h2>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={invMes} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="mes" tick={{ fill: '#94A3B8', fontSize: 12 }} />
-                  <YAxis tickFormatter={fmtShort} tick={{ fill: '#94A3B8', fontSize: 11 }} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v) => [fmt(v), 'Investido']} />
-                  <Bar dataKey="total" name="Investido" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="overflow-x-auto -mx-5">
+                <div style={{ minWidth: 480 }} className="px-2">
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={invMes} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis dataKey="mes" tick={{ fill: '#94A3B8', fontSize: 11 }} />
+                      <YAxis tickFormatter={fmtShort} tick={{ fill: '#94A3B8', fontSize: 10 }} width={46} />
+                      <Tooltip contentStyle={tooltipStyle} formatter={(v) => [fmt(v), 'Investido']} />
+                      <Bar dataKey="total" name="Investido" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
 
               <div className="mt-4 p-4 bg-surface rounded-xl border border-border">
                 <div className="flex justify-between items-center">

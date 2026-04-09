@@ -1,9 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useState } from 'react'
 import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Navbar from './components/Navbar'
-import { Menu } from 'lucide-react'
+import BottomNav from './components/BottomNav'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Financeiro from './pages/Financeiro'
@@ -15,24 +14,16 @@ import Onboarding from './pages/Onboarding'
 import Configuracoes from './pages/Configuracoes'
 
 function Layout({ children }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
   return (
     <div className="flex min-h-screen bg-bg relative">
       <div className="page-glow" />
-      <Navbar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      {/* Hamburger — visible only on mobile */}
-      <button
-        onClick={() => setSidebarOpen(true)}
-        className="md:hidden fixed top-4 left-4 z-50 w-9 h-9 rounded-xl bg-surface border border-border flex items-center justify-center text-muted hover:text-text transition-colors"
-        aria-label="Abrir menu"
-      >
-        <Menu size={18} />
-      </button>
-      <main className="flex-1 p-6 pt-16 md:pt-6 overflow-auto ml-0 md:ml-14 lg:ml-56 relative z-10">
+      <Navbar />
+      <main className="flex-1 px-4 py-4 md:p-6 overflow-auto ml-0 md:ml-14 lg:ml-56 relative z-10 pb-24 md:pb-6">
         <div className="max-w-5xl mx-auto animate-fade-up">
           {children}
         </div>
       </main>
+      <BottomNav />
     </div>
   )
 }
