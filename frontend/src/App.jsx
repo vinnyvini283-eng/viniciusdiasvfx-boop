@@ -9,6 +9,8 @@ import Relatorios from './pages/Relatorios'
 import Work from './pages/Work'
 import WorkDashboard from './pages/WorkDashboard'
 import WorkRelatorios from './pages/WorkRelatorios'
+import Onboarding from './pages/Onboarding'
+import Configuracoes from './pages/Configuracoes'
 
 function Layout({ children }) {
   return (
@@ -48,6 +50,10 @@ export default function App() {
           <Route path="/work" element={<P><WorkDashboard /></P>} />
           <Route path="/work/tarefas" element={<P><Work /></P>} />
           <Route path="/work/relatorios" element={<P><WorkRelatorios /></P>} />
+
+          {/* Onboarding & Configurações */}
+          <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/configuracoes" element={<P><Configuracoes /></P>} />
 
           {/* Legacy redirects */}
           <Route path="/lancamentos" element={<Navigate to="/financeiro" replace />} />

@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { LayoutDashboard, Wallet, BarChart2, Briefcase, CheckSquare, TrendingUp, LogOut } from 'lucide-react'
+import { LayoutDashboard, Wallet, BarChart2, Briefcase, CheckSquare, TrendingUp, LogOut, Settings } from 'lucide-react'
 
 const contabil = [
   { to: '/',           label: 'Dashboard',  icon: LayoutDashboard, end: true },
@@ -92,7 +92,27 @@ export default function Navbar() {
       <div className="mx-4 divider" />
 
       {/* Footer */}
-      <div className="px-3 py-4">
+      <div className="px-3 py-4 space-y-1">
+        <NavLink
+          to="/configuracoes"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer group ${
+              isActive ? 'text-white' : 'text-muted hover:text-text'
+            }`
+          }
+        >
+          {({ isActive }) => (
+            <>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
+                isActive ? 'bg-accent/20' : 'group-hover:bg-card'
+              }`}
+                style={isActive ? { boxShadow: '0 0 12px rgba(249,115,22,0.3)' } : {}}>
+                <Settings size={15} className={isActive ? 'text-accent' : ''} />
+              </div>
+              <span>Configurações</span>
+            </>
+          )}
+        </NavLink>
         <button
           onClick={handleSignOut}
           className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted hover:text-negative transition-all duration-200 cursor-pointer w-full group"

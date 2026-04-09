@@ -1,20 +1,28 @@
-"""CRUD tarefas — Fase 2."""
+"""CRUD tarefas — multi-tenant."""
 from db.supabase_client import get_client
+from db.user_context import get_user_id
 
 
 def listar_pendentes(cliente_nome: str = None) -> list[dict]:
     db = get_client()
-    query = db.table("tarefas").select("*, clientes(nome)").eq("feito", False)
-    result = query.order("data_limite").execute()
+    uid = get_user_id()
+    q = db.table("tarefas").select("*, clientes(nome)").eq("feito", False)
+    if uid:
+        q = q.eq("user_id", uid)
+    result = q.order("data_limite").execute()
     if cliente_nome:
         return [t for t in result.data
                 if (t.get("clientes") or {}).get("nome") == cliente_nome]
     return result.data
 
 
-def criar(nome: str, cliente_id: str = None, data_limite: str = None, observacao: str = None) -> dict:
+def criar(nome: str, cliente_id: str = None, data_limite: str = None,
+          observacao: str = None) -> dict:
     db = get_client()
+    uid = get_user_id()
     payload = {"nome": nome}
+    if uid:
+        payload["user_id"] = uid
     if cliente_id:
         payload["cliente_id"] = cliente_id
     if data_limite:

@@ -196,8 +196,9 @@ def handle_pdf_extrato(user_id: int, file_id: str) -> str:
     return _queue(user_id, inserir_tudo, "\n".join(linhas))
 
 
-def handle_message(user_id: int, texto: str, ocr_data: dict = None) -> str:
-    if not is_authorized(user_id):
+def handle_message(user_id: int, texto: str, ocr_data: dict = None,
+                   authorized: bool = False) -> str:
+    if not authorized and not is_authorized(user_id):
         return ""
 
     texto = texto.strip()

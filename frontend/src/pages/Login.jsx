@@ -29,12 +29,15 @@ export default function Login() {
         return
       }
       setLoading(true)
-      const { error: err } = await supabase.auth.signUp({ email, password })
+      const { data: signUpData, error: err } = await supabase.auth.signUp({ email, password })
       setLoading(false)
       if (err) {
         setError(err.message === 'User already registered'
           ? 'Este email já está cadastrado.'
           : 'Erro ao criar conta. Tente novamente.')
+      } else if (signUpData?.session) {
+        // Login automático (confirmação de email desativada) → onboarding
+        navigate('/onboarding', { replace: true })
       } else {
         setSuccess('Conta criada! Verifique seu email para confirmar o cadastro.')
         setMode('login')

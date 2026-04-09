@@ -1,16 +1,20 @@
 from datetime import date as date_type
 from db.supabase_client import get_client
+from db.user_context import get_user_id
 
 
 def inserir(descricao: str, valor: float, tipo: str = "freela",
             data: date_type = None, observacao: str = None) -> dict:
     db = get_client()
+    uid = get_user_id()
     payload = {
         "descricao": descricao,
         "valor": round(float(valor), 2),
         "tipo": tipo,
         "data": str(data or date_type.today()),
     }
+    if uid:
+        payload["user_id"] = uid
     if observacao:
         payload["observacao"] = observacao
     result = db.table("entradas").insert(payload).execute()
@@ -19,11 +23,11 @@ def inserir(descricao: str, valor: float, tipo: str = "freela",
 
 def get_ultimo() -> dict | None:
     db = get_client()
-    result = (db.table("entradas")
-                .select("*")
-                .order("criado_em", desc=True)
-                .limit(1)
-                .execute())
+    uid = get_user_id()
+    q = db.table("entradas").select("*").order("criado_em", desc=True).limit(1)
+    if uid:
+        q = q.eq("user_id", uid)
+    result = q.execute()
     return result.data[0] if result.data else None
 
 
@@ -35,9 +39,9 @@ def deletar_por_id(id: str) -> dict | None:
 
 def get_total_mes(mes: int, ano: int) -> float:
     db = get_client()
-    result = (db.table("entradas")
-                .select("valor")
-                .eq("mes", mes)
-                .eq("ano", ano)
-                .execute())
+    uid = get_user_id()
+    q = db.table("entradas").select("valor").eq("mes", mes).eq("ano", ano)
+    if uid:
+        q = q.eq("user_id", uid)
+    result = q.execute()
     return sum(float(r["valor"]) for r in result.data)
