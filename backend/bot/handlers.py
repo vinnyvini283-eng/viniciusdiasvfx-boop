@@ -521,6 +521,19 @@ def _route(user_id: int, parsed: dict, intencao: str) -> str:
         return _queue(user_id, do,
             f"⚠️ *Excluir todos os lançamentos de {mes:02d}/{ano}?*\nEssa ação não pode ser desfeita.\n\nResponda *sim* para confirmar.")
 
+    elif intencao == "deletar_tudo_mes":
+        total_l = len((lancamentos.get_ultimo() and [1] or []))  # estimativa rápida
+        def do():
+            total_lan = lancamentos.deletar_mes(mes, ano)
+            total_ent = entradas.deletar_mes(mes, ano)
+            return (f"🗑️ Removidos {total_lan} lançamento(s) e {total_ent} entrada(s) "
+                    f"de {mes:02d}/{ano}.")
+
+        return _queue(user_id, do,
+            f"⚠️ *Excluir TODOS os registros de {mes:02d}/{ano}?*\n"
+            f"(lançamentos + entradas)\nEssa ação não pode ser desfeita.\n\n"
+            f"Responda *sim* para confirmar.")
+
     # ── WORK — TAREFAS ────────────────────────────────────────────────────
     elif intencao == "nova_tarefa":
         nome = parsed.get("tarefa_nome") or parsed.get("descricao")

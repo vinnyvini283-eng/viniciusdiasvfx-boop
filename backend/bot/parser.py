@@ -95,11 +95,12 @@ Intenções financeiras:
 - consulta_maior_gasto: maior gasto do mês
 - consulta_investimentos_ano: total investido no ano
 - editar_ultimo_lancamento: corrigir/alterar último lançamento
-- deletar_lancamento: apagar o ÚLTIMO lançamento (confirmacao_necessaria=true)
-- deletar_entrada: apagar a ÚLTIMA entrada/freela (confirmacao_necessaria=true)
-- deletar_todos_lancamentos: apagar TODOS os lançamentos ("apaga tudo", "excluir todos os lançamentos", "limpar todos os gastos") — confirmacao_necessaria=true
-- deletar_todos_entradas: apagar TODAS as entradas ("apaga todas as entradas", "limpar todas as freelas") — confirmacao_necessaria=true
-- deletar_lancamentos_mes: apagar todos os lançamentos do mês atual ou mencionado ("apaga os gastos de março", "limpar lançamentos do mês") — confirmacao_necessaria=true
+- deletar_lancamento: apagar SOMENTE o ÚLTIMO lançamento individual (confirmacao_necessaria=true)
+- deletar_entrada: apagar SOMENTE a ÚLTIMA entrada individual (confirmacao_necessaria=true)
+- deletar_todos_lancamentos: apagar TODOS os lançamentos históricos ("apaga todos os lançamentos", "limpar todos os gastos") — confirmacao_necessaria=true
+- deletar_todos_entradas: apagar TODAS as entradas históricas ("apaga todas as entradas", "limpar todas as freelas") — confirmacao_necessaria=true
+- deletar_lancamentos_mes: apagar todos os lançamentos do mês mencionado ("apaga os gastos de março", "limpar lançamentos de fevereiro") — confirmacao_necessaria=true
+- deletar_tudo_mes: apagar TODOS os registros (lançamentos + entradas) do mês atual — usar quando diz "excluir todos os registros", "excluir tudo que importei", "apagar esses N registros/itens", "excluir tudo do mês", "limpar tudo" sem especificar tipo — confirmacao_necessaria=true
 
 Intenções work:
 - nova_tarefa: criar nova tarefa (ex: "nova tarefa GSPNEUS: relatório até sexta")
@@ -120,6 +121,9 @@ Regras:
 - "aluguel agora é X" / "[nome da fixa] virou X" → atualizar_fixa, descricao=nome, valor=X
 - "minhas fixas" / "contas fixas" → consulta_fixas
 - "apaga/remove/cancela/deleta" → intencao começa com "deletar_", confirmacao_necessaria=true
+- "excluir todos os registros" / "apagar tudo que importei" / "excluir esses N registros/itens" / "excluir tudo" → deletar_tudo_mes (NÃO deletar_lancamento)
+- "excluir o último" / "apaga o último" → deletar_lancamento (apenas 1 item)
+- NUNCA use deletar_lancamento para pedidos em massa — só para "o último" ou "aquele específico"
 - confirmacao_necessaria=true se valor > 500 OU intencao começa com "deletar_"
 - tipo_entrada (só preencher quando intencao=inserir_entrada):
   * "salario" → menciona "salário", "salario", ou remetente é GS Pneus/JRL/PHS
