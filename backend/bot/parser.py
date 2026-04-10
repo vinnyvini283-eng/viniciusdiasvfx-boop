@@ -9,10 +9,48 @@ logger = logging.getLogger(__name__)
 _groq: Groq | None = None
 
 MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
-_MAX_HISTORY = 10  # pares de mensagens (user + assistant) por usuário
+_MAX_HISTORY = 20  # pares de mensagens persistidas por usuário
+_CACHE_LOADED: set[int] = set()  # user_ids já carregados do banco nessa sessão
 
-# user_id → deque de {"role": str, "content": str}
+# user_id → deque de {"role": str, "content": str} (cache em memória)
 _history: dict[int, deque] = {}
+
+
+def _load_history_db(user_id: int) -> None:
+    """Carrega histórico do Supabase para a memória (uma vez por sessão)."""
+    if user_id in _CACHE_LOADED:
+        return
+    try:
+        from db.supabase_client import get_client
+        db = get_client()
+        result = (
+            db.table("bot_historico")
+            .select("role,content")
+            .eq("telegram_user_id", user_id)
+            .order("criado_em", desc=False)
+            .limit(_MAX_HISTORY * 2)
+            .execute()
+        )
+        msgs = result.data or []
+        if msgs:
+            _history[user_id] = deque(msgs, maxlen=_MAX_HISTORY * 2)
+        _CACHE_LOADED.add(user_id)
+    except Exception as e:
+        logger.warning(f"[parser] falha ao carregar histórico do banco user={user_id}: {e}")
+        _CACHE_LOADED.add(user_id)  # não tentar de novo nessa sessão
+
+
+def _save_history_db(user_id: int, user_msg: str, assistant_msg: str) -> None:
+    """Persiste o par de mensagens no Supabase (fire and forget)."""
+    try:
+        from db.supabase_client import get_client
+        db = get_client()
+        db.table("bot_historico").insert([
+            {"telegram_user_id": user_id, "role": "user", "content": user_msg},
+            {"telegram_user_id": user_id, "role": "assistant", "content": assistant_msg},
+        ]).execute()
+    except Exception as e:
+        logger.warning(f"[parser] falha ao salvar histórico user={user_id}: {e}")
 
 SYSTEM_PROMPT = """Você é o assistente pessoal de Vinicius, profissional de marketing digital e vídeo no Brasil.
 Analise a mensagem e retorne APENAS um JSON válido, sem markdown, sem explicações.
@@ -108,6 +146,10 @@ def parse_mensagem(texto: str, user_id: int | None = None) -> dict:
     today = date.today().strftime("%d/%m/%Y")
     system = SYSTEM_PROMPT.replace("{today}", today)
 
+    # Garante que o histórico persistido foi carregado uma vez nessa sessão
+    if user_id is not None:
+        _load_history_db(user_id)
+
     # Monta histórico de contexto
     history = list(_history.get(user_id, [])) if user_id is not None else []
     messages = [{"role": "system", "content": system}] + history + [{"role": "user", "content": texto}]
@@ -128,16 +170,24 @@ def parse_mensagem(texto: str, user_id: int | None = None) -> dict:
     parsed = json.loads(content)
     logger.debug(f"parse_mensagem user={user_id} input={texto!r} output={parsed}")
 
-    # Salva no histórico para contexto futuro
+    # Salva no cache em memória
     if user_id is not None:
         if user_id not in _history:
             _history[user_id] = deque(maxlen=_MAX_HISTORY * 2)
         _history[user_id].append({"role": "user", "content": texto})
         _history[user_id].append({"role": "assistant", "content": content})
+        # Persiste no banco para sobreviver a reinícios
+        _save_history_db(user_id, texto, content)
 
     return parsed
 
 
 def clear_history(user_id: int) -> None:
-    """Limpa o histórico de conversa de um usuário."""
+    """Limpa o histórico de conversa de um usuário (memória + banco)."""
     _history.pop(user_id, None)
+    _CACHE_LOADED.discard(user_id)
+    try:
+        from db.supabase_client import get_client
+        get_client().table("bot_historico").delete().eq("telegram_user_id", user_id).execute()
+    except Exception as e:
+        logger.warning(f"[parser] falha ao limpar histórico DB user={user_id}: {e}")
