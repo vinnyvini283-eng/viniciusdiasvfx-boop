@@ -37,6 +37,30 @@ def deletar_por_id(id: str) -> dict | None:
     return result.data[0] if result.data else None
 
 
+def deletar_todos() -> int:
+    db = get_client()
+    uid = get_user_id()
+    q = db.table("entradas").delete()
+    if uid:
+        q = q.eq("user_id", uid)
+    else:
+        q = q.neq("id", "00000000-0000-0000-0000-000000000000")
+    result = q.execute()
+    return len(result.data)
+
+
+def deletar_mes(mes: int, ano: int) -> int:
+    db = get_client()
+    uid = get_user_id()
+    inicio = f"{ano}-{mes:02d}-01"
+    fim = f"{ano}-{mes:02d}-31"
+    q = db.table("entradas").delete().gte("data", inicio).lte("data", fim)
+    if uid:
+        q = q.eq("user_id", uid)
+    result = q.execute()
+    return len(result.data)
+
+
 def get_total_mes(mes: int, ano: int) -> float:
     db = get_client()
     uid = get_user_id()

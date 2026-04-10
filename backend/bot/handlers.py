@@ -155,7 +155,7 @@ def handle_pdf_extrato(user_id: int, file_id: str) -> str:
                 ins_entrada(
                     descricao=r["descricao"],
                     valor=round(float(r["valor"]), 2),
-                    tipo="freela",
+                    tipo=r.get("tipo", "freela"),
                     data=dt,
                 )
                 inseridos += 1
@@ -233,10 +233,20 @@ def handle_pdf_extrato(user_id: int, file_id: str) -> str:
             linhas.append(f"  • {r['data'][8:]}/{r['data'][5:7]} {r['cliente_nome']} — {fmt_moeda(r['valor'])}")
 
     if ents:
-        total_e = sum(r["valor"] for r in ents)
-        linhas.append(f"\n💰 *Outras entradas ({len(ents)}):* {fmt_moeda(total_e)}")
-        for r in ents:
-            linhas.append(f"  • {r['data'][8:]}/{r['data'][5:7]} {r['descricao']} — {fmt_moeda(r['valor'])}")
+        sals = [r for r in ents if r.get("tipo") == "salario"]
+        outras = [r for r in ents if r.get("tipo") != "salario"]
+        if sals:
+            total_sal = sum(r["valor"] for r in sals)
+            linhas.append(f"\n💼 *Salários ({len(sals)}):* {fmt_moeda(total_sal)}")
+            for r in sals:
+                linhas.append(f"  • {r['data'][8:]}/{r['data'][5:7]} {r['descricao']} — {fmt_moeda(r['valor'])}")
+        if outras:
+            total_e = sum(r["valor"] for r in outras)
+            tipo_label = {"freela": "Freelas", "divida": "Dívidas", "outros": "Outros"}
+            linhas.append(f"\n💰 *Outras entradas ({len(outras)}):* {fmt_moeda(total_e)}")
+            for r in outras:
+                label = tipo_label.get(r.get("tipo", "freela"), "Freela")
+                linhas.append(f"  • {r['data'][8:]}/{r['data'][5:7]} [{label}] {r['descricao']} — {fmt_moeda(r['valor'])}")
 
     linhas.append("\nResponda *sim* para importar tudo ou *nao* para cancelar.")
     return _queue(user_id, inserir_tudo, "\n".join(linhas))
@@ -312,9 +322,10 @@ def _route(user_id: int, parsed: dict, intencao: str) -> str:
             return "Qual o valor da entrada?"
         descricao = parsed.get("descricao") or "Entrada"
         data = _parse_date(parsed.get("data"))
+        tipo_ent = parsed.get("tipo_entrada") or "freela"
 
         def do():
-            entradas.inserir(descricao, valor, tipo="freela", data=data)
+            entradas.inserir(descricao, valor, tipo=tipo_ent, data=data)
             return msg_inserido("Entrada", descricao, valor)
 
         if parsed.get("confirmacao_necessaria"):
@@ -485,6 +496,30 @@ def _route(user_id: int, parsed: dict, intencao: str) -> str:
             return f"🗑️ Entrada excluída: *{ultimo['descricao']}* — {fmt_moeda(float(ultimo['valor']))}"
 
         return _queue(user_id, do, msg_confirmacao_delete(ultimo, "entrada"))
+
+    elif intencao == "deletar_todos_lancamentos":
+        def do():
+            total = lancamentos.deletar_todos()
+            return f"🗑️ {total} lançamento(s) excluído(s)."
+
+        return _queue(user_id, do,
+            "⚠️ *Excluir TODOS os lançamentos?*\nEssa ação não pode ser desfeita.\n\nResponda *sim* para confirmar.")
+
+    elif intencao == "deletar_todos_entradas":
+        def do():
+            total = entradas.deletar_todos()
+            return f"🗑️ {total} entrada(s) excluída(s)."
+
+        return _queue(user_id, do,
+            "⚠️ *Excluir TODAS as entradas?*\nEssa ação não pode ser desfeita.\n\nResponda *sim* para confirmar.")
+
+    elif intencao == "deletar_lancamentos_mes":
+        def do():
+            total = lancamentos.deletar_mes(mes, ano)
+            return f"🗑️ {total} lançamento(s) de {mes:02d}/{ano} excluído(s)."
+
+        return _queue(user_id, do,
+            f"⚠️ *Excluir todos os lançamentos de {mes:02d}/{ano}?*\nEssa ação não pode ser desfeita.\n\nResponda *sim* para confirmar.")
 
     # ── WORK — TAREFAS ────────────────────────────────────────────────────
     elif intencao == "nova_tarefa":
